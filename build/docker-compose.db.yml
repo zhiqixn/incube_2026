@@ -1,0 +1,34 @@
+version: '3.5'
+
+networks:
+  agent:
+
+services:
+  weaviate:
+    image: semitechnologies/weaviate:${WEAVIATE_VERSION}
+    env_file:
+      - .env
+    networks:
+      - agent
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - ${WEAVIATE_PORT}
+      - --scheme
+      - http
+    ports:
+      - ${WEAVIATE_PORT}:${WEAVIATE_PORT}
+      - ${PROMETHEUS_PORT}:${PROMETHEUS_PORT}
+    restart: on-failure:0
+    volumes:
+      - ../vector_db/var/weaviate:/var/lib/weaviate
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: 'node1'
+      PROMETHEUS_MONITORING_ENABLED: 'true'
+
+
