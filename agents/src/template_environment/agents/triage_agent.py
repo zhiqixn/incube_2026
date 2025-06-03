@@ -3,50 +3,43 @@ import json
 from typing import Callable, List, Tuple
 
 from autogen_core import AgentId, MessageContext, TopicId
-from autogen_core import (
-    FunctionCall,
-    RoutedAgent,
-    TypeSubscription,
-    message_handler,
-)
+from autogen_core import FunctionCall, RoutedAgent, message_handler
 from autogen_core.models import (
     AssistantMessage,
+    UserMessage,
     ChatCompletionClient,
     CreateResult,
     FunctionExecutionResult,
     FunctionExecutionResultMessage,
     LLMMessage,
-    UserMessage,
     SystemMessage,
-    CreateResult,
 )
-from autogen_core.tools import FunctionTool, Tool
+from autogen_core.tools import FunctionTool
 
 from configs.tools_config import delegate_cfg
-from messaging.messaging_protocols import *
-
+from messaging.messaging_protocols import AgentResponse, AgentTask, UserTask
 from utils.logger import get_logger
 
 logger = get_logger()
 
-# TODO: Replace all PLACEHOLDER with concrete names
 
-
-class BasePLACEHOLDERAgent(RoutedAgent):
+class Triage(RoutedAgent):
     def __init__(
         self,
         description: str,
         system_message: SystemMessage,
-        model_client: ChatCompletionClient,
-        delegate_tools: List[Callable],
         publish_topics: List[str],
+        delegate_tools: List[Callable],
+        model_client: ChatCompletionClient,
+        broadcast_topic_type: str = "patient_profile",
     ):
         super().__init__(description)
         self._system_message = system_message
         self._model_client = model_client
+        self._publish_topics = publish_topics
         self._delegate_tools = delegate_tools
         self._delegate_tool_schema = None
-        self._publish_topics = publish_topics
+        self._broadcast_topic_type = broadcast_topic_type
         self._chat_history: List[LLMMessage] = []
         self._delegated_agents = []
         self._agent_topic_type = ""
@@ -55,7 +48,10 @@ class BasePLACEHOLDERAgent(RoutedAgent):
     @message_handler
     async def handle_user_task(self, message: UserTask, ctx: MessageContext) -> None:
         """
-        Handle a UserTask message by adding it to the chat history.
+        Handle a UserTask message by adding it to the chat history and broadcasting
+        it to all agents. Then, send the chat history to the LLM and if it returns
+        a list of function calls, delegate them. Otherwise, send the LLM response
+        back to the user.
 
         Args:
             message: The UserTask message to be handled.
@@ -63,48 +59,37 @@ class BasePLACEHOLDERAgent(RoutedAgent):
         """
         # add message to chat history
         self._chat_history.extend(message.context)
-        return
 
-    @message_handler
-    async def handle_agent_task(self, message: AgentTask, ctx: MessageContext) -> None:
-        """
-        Handle a AgentTask message by adding it to the chat history and sending to LLM.
-
-        This message handler is called when the agent receives a task from another agent.
-        It adds the task to the chat history and sends the chat history to the LLM.
-        If the LLM returns a list of function calls, the agent runs them.
-        Otherwise, the agent sends the LLM response back to the other agent.
-
-        Args:
-            message: The AgentTask message to be handled.
-            ctx: The message context.
-
-        Returns:
-            None
-        """
-
-        # add message to chat history
-        self._chat_history.extend(message.context)
+        # designate message soure topic type
         self._agent_topic_type = message.reply_to_topic_type
 
         if not self._delegate_tool_schema:
             await self.set_delegate_tools_schema()
 
-        # analyse agent task
+        # broadcast the message to all agents
+        logger.info("Broadcasting message to all agents")
+        await self.publish_message(
+            message, topic_id=TopicId(self._broadcast_topic_type, source=self.id.key)
+        )
+
+        # analyse user task and delegate if necessary by sending to LLM
         llm_result = await self._model_client.create(
             messages=[self._system_message] + self._chat_history,
             tools=self._delegate_tool_schema,
             cancellation_token=ctx.cancellation_token,
         )
 
+        logger.info("LLM result: %s", llm_result)
+
+        # if the LLM returns a list of function calls, delegate them
         if isinstance(llm_result.content, list) and all(
             isinstance(m, FunctionCall) for m in llm_result.content
         ):
             self._tool_result = []
             await self.handle_function_calls(llm_result, ctx)
 
-        # if LLM response is not a list of function calls, and no agent delegation is required send it back to sender
-        if len(self._delegated_agents) == 0:
+        # if LLM response is not a list of function calls, send it back to user
+        else:
             await self.publish_message(
                 AgentResponse(
                     reply_to_topic_type=self.id.type,
@@ -116,8 +101,7 @@ class BasePLACEHOLDERAgent(RoutedAgent):
                 ),
                 topic_id=TopicId(message.reply_to_topic_type, source=self.id.key),
             )
-
-            # add assistant message output to chat history
+            # add message to chat history
             self._chat_history.append(
                 AssistantMessage(content=llm_result.content, source=self.id.type)
             )
@@ -127,32 +111,25 @@ class BasePLACEHOLDERAgent(RoutedAgent):
         self, message: AgentResponse, ctx: MessageContext
     ) -> None:
         """
-        Handle an AgentResponse message by adding it to the chat history and sending to LLM.
+        Handle a response from an agent that was delegated a task.
 
-        This message handler is called when the agent receives a response from another agent.
-        It adds the response to the chat history and sends the chat history to the LLM.
-        If the LLM returns a list of function calls, the agent runs them.
-        Otherwise, the agent sends the LLM response back to the other agent.
+        This message handler is called when the triage agent receives a response from
+        an agent that was delegated a task. If the response is a list of function calls,
+        the triage agent delegates them. Otherwise, the triage agent sends the response
+        back to the user.
 
         Args:
-            message: The AgentResponse message to be handled.
+            message: The message containing the response from the delegated agent.
             ctx: The message context.
 
         Returns:
             None
         """
-        logger.info("PLACEHOLDER received response from %s", message.reply_to_topic_type)
+        logger.info("Triage received response from %s", message.reply_to_topic_type)
 
         # pop agent from list of delegated agents
-        while message.reply_to_topic_type in self._delegated_agents:
+        if message.reply_to_topic_type in self._delegated_agents:
             self._delegated_agents.remove(message.reply_to_topic_type)
-
-        # pop agents that are invalid
-        for agent in self._delegated_agents:
-            if agent not in self._publish_topics:
-                self._delegated_agents.remove(agent)
-
-        logger.info("Agents left: %s", self._delegated_agents)
 
         tool_proxy_result = self._tool_result
 
@@ -178,7 +155,7 @@ class BasePLACEHOLDERAgent(RoutedAgent):
             self._tool_result.remove(result)
             self._tool_result.append(tool_result)
 
-        # if LLM response is not a list of function calls, and no agent delegation is required send it back to sender
+        # if LLM response is not a list of function calls, send it back to user
         if len(self._delegated_agents) == 0:
             # add self._tool_result to chat history
             self._chat_history.append(
@@ -187,12 +164,13 @@ class BasePLACEHOLDERAgent(RoutedAgent):
 
             self._tool_result = []
 
+            # analyse user task and delegate if necessary by sending to LLM
             llm_result = await self._model_client.create(
                 messages=[self._system_message] + self._chat_history,
                 cancellation_token=ctx.cancellation_token,
             )
 
-            logger.info("PLACEHOLDER sending response to %s", self._agent_topic_type)
+            logger.info("Triage sending response back to %s", self._agent_topic_type)
             await self.publish_message(
                 AgentResponse(
                     reply_to_topic_type=self.id.type,
@@ -204,6 +182,7 @@ class BasePLACEHOLDERAgent(RoutedAgent):
                 ),
                 topic_id=TopicId(self._agent_topic_type, source=self.id.key),
             )
+            # add message to chat history
             self._chat_history.append(
                 AssistantMessage(content=llm_result.content, source=self.id.type)
             )
@@ -212,64 +191,55 @@ class BasePLACEHOLDERAgent(RoutedAgent):
         self, llm_result: CreateResult, ctx: MessageContext
     ) -> None:
         """
-        Process a list of function calls returned by the LLM and execute them using
-        the appropriate tools or delegate tools.
+        Process a list of function calls returned by the LLM.
 
-        This method appends the function calls to the chat history, executes each
-        function call using the corresponding tool or delegate tool, and appends
-        the execution results to the chat history. If there are delegate targets,
-        it further delegates tasks to the specified agents.
+        This method adds the function calls to the chat history, runs each function
+        call against the corresponding delegate tool, and adds the results to the
+        chat history. It also sends the function calls to the agents specified in
+        the delegate targets.
 
         Args:
-            llm_result: The result of the LLM, which contains a list of function
-                        calls to be processed.
-            ctx: The message context which includes a cancellation token for
-                managing task cancellation.
+            llm_result: The result of the LLM, which should contain a list of
+                function calls.
+            ctx: The message context.
 
         Returns:
             None
         """
-
         # add message to chat history
         self._chat_history.append(
             AssistantMessage(content=llm_result.content, source=self.id.type)
         )
 
+        # process each function call
         function_execution_results = []
         delegate_targets = []
-        # Process each function call.
         for call in llm_result.content:
             arguments = json.loads(call.arguments)
-            assert call.name in list(
-                self._delegate_tools.keys()
-            ), f"Unknown tool: {call.name}"
-
-            if call.name in self._delegate_tools:
-                # run delegate tool
-                delegate_targets_new = await self._delegate_tools[call.name].run_json(
-                    arguments, ctx.cancellation_token
+            assert call.name in self._delegate_tools, f"Unknown tool: {call.name}"
+            delegate_targets_new = await self._delegate_tools[call.name].run_json(
+                arguments, ctx.cancellation_token
+            )
+            delegate_targets += delegate_targets_new
+            function_execution_results.append(
+                FunctionExecutionResult(
+                    name=call.name,
+                    content=self._delegate_tools[call.name].return_value_as_string(
+                        delegate_targets
+                    ),
+                    call_id=call.id,
                 )
-                delegate_targets += delegate_targets_new
-                # append results to function execution results
-                function_execution_results.append(
-                    FunctionExecutionResult(
-                        name=call.name,
-                        content=self._delegate_tools[call.name].return_value_as_string(
-                            delegate_targets
-                        ),
-                        call_id=call.id,
-                    )
+            )
+            # save tool tasks to agent
+            self._tool_result.append(
+                FunctionExecutionResult(
+                    name=call.name,
+                    content=self._delegate_tools[call.name].return_value_as_string(
+                        delegate_targets
+                    ),
+                    call_id=call.id,
                 )
-                # save tool tasks to agent
-                self._tool_result.append(
-                    FunctionExecutionResult(
-                        name=call.name,
-                        content=self._delegate_tools[call.name].return_value_as_string(
-                            delegate_targets
-                        ),
-                        call_id=call.id,
-                    )
-                )
+            )
 
         # delegate task to agents if delegate targets exist
         if len(delegate_targets) > 0:
@@ -329,4 +299,4 @@ class BasePLACEHOLDERAgent(RoutedAgent):
     async def _get_agent_description(self, topic_id):
         metadata = await self._runtime.agent_metadata(AgentId(topic_id, "default"))
         description = metadata["description"]
-        return f"{topic_id}"
+        return f"{topic_id}"  #: {description}"

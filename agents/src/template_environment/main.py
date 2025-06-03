@@ -1,4 +1,90 @@
-from configs.config import AgentConfig
+import asyncio
+import os
+
+from autogen_core import SingleThreadedAgentRuntime
+from autogen_core.models import SystemMessage, UserMessage
+from autogen_core import TopicId
+
+import utils.tracer as tracer
+# from agents.base_agents import 
+from agents.base_agent import BasePLACEHOLDERAgent
+from agents.triage_agent import Triage
+from agents.user_agent import UserAgent
+from configs import agents_config
+from configs import runtime_config
+from messaging.messaging import setup_messaging_topics
+from utils.logger import get_logger, setup_logger
+from messaging.messaging_protocols import UserTask
+
+# TODO: Replace all PLACEHOLDER with concrete names
+
+setup_logger()
+logger = get_logger()
+
+
+async def main():
+    # instantiate trace provider
+    logger.info("Instantiating trace provider")
+    trace_provider = tracer.get_phoenix_tracer_provider(project_name="PLACEHOLDER_project_name")
+    # instantiate runtime
+    logger.info("Instantiating runtime")
+    runtime = SingleThreadedAgentRuntime(tracer_provider=trace_provider)
+    # runtime = SingleThreadedAgentRuntime()
+    # Instantiate all agents
+    logger.info("Instantiating all agents")
+    agents = {}
+    for user in agents_config.user_cfgs:
+        agents[user["name"]] = await UserAgent.register(
+            runtime,
+            type=user["name"],
+            factory=lambda user_cfgs=user: UserAgent(
+                description=user_cfgs["description"],
+                user_topic_type=user_cfgs["user_topic_type"],
+                agent_topic_type=user_cfgs["agent_topic_type"],
+            ),
+        )
+    for triage in agents_config.triage_cfgs:
+        agents[triage["name"]] = await Triage.register(
+            runtime,
+            type=triage["name"],
+            factory=lambda triage_cfgs=triage: Triage(
+                description=triage_cfgs["description"],
+                system_message=SystemMessage(content=triage_cfgs["system_message"]),
+                model_client=triage_cfgs["model"],
+                publish_topics=triage_cfgs["topics"],
+                delegate_tools=triage_cfgs["delegate_tools"],
+            ),
+        )
+    for agent in agents_config.PLACEHOLDER_cfgs:
+        agents[agent["name"]] = await BasePLACEHOLDERAgent.register(
+            runtime,
+            type=agent["name"],
+            factory=lambda agent_cfgs=agent: BasePLACEHOLDERAgent(
+                description=agent_cfgs["description"],
+                system_message=SystemMessage(content=agent_cfgs["system_message"]),
+                model_client=agent_cfgs["model"],
+                # tools=[],
+                delegate_tools=agent_cfgs["delegate_tools"],
+                publish_topics=agent_cfgs["topics"],
+            ),
+        )
+
+
+    logger.info("Instantiating message queue")
+    await setup_messaging_topics(runtime, agents, "PLACEHOLDER_BROADCAST")
+    # Start running task
+    logger.info("Starting runtime")
+    runtime.start()
+    await runtime.publish_message(
+        UserTask(
+            reply_to_topic_type="User",
+            context=[UserMessage(content=runtime_config.prompt, source="User")],
+        ),
+        topic_id=TopicId("User", "PLACEHOLDER_ID"),
+    )
+    logger.info("Message published")
+    await runtime.stop_when_idle()  # Stop processing messages in the background.
+
 
 if __name__ == "__main__":
-    configs = AgentConfig()  # Calling this class will immediately log all configs.
+    asyncio.run(main())
