@@ -1,0 +1,34 @@
+default_language_version:
+    python: python3.11
+repos:
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: trailing-whitespace
+        types: [file]
+        files: '^.*.(md|yaml|yml|toml|py)$'
+    -   id: end-of-file-fixer
+        types: [file]
+        files: '^.*.(md|yaml|yml|toml|py)$'
+    -   id: check-added-large-files
+    -   id: check-toml
+    -   id: check-yaml
+        args : [--allow-multiple-documents]
+    -   id: check-case-conflict
+  # Formatter
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+    -   id: flake8
+        name: flake8
+        description: '`flake8` is a command-line utility for enforcing style consistency across Python projects.'
+        entry: flake8
+        language: python
+        types: [python]
+        require_serial: true
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+    - id: black
+      language_version: python3.11

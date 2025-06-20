@@ -1,0 +1,11 @@
+[flake8]
+# match black
+ignore = F403, F405, E402
+max-line-length = 88
+extend-ignore = E203
+per-file-ignores =
+    __init__.py: F401
+exclude =
+    */tests/*,
+    */config/*
+max-complexity = 20
