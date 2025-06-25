@@ -1,29 +1,19 @@
 from models.model import *
 from tools import *
 
-# TODO: Replace all PLACEHOLDER with concrete names
-
 
 user_cfgs = [
     {
         "name": "User",
-        "description": "User Agent used to initialize task to be performed by other agents",
+        "description": (
+            "User Agent used to initialize task" " to be performed by other agents"
+        ),
         "user_topic_type": "User",
         "agent_topic_type": "Triage",
     }
 ]
-triage_cfgs = [
-    {
-        "name": "Triage",
-        "system_message": """""",
-        "description": "",
-        "model": model,
-        "topics": [],
-        "delegate_tools": [delegate_tasks],
-    }
-]
 
-PLACEHOLDER_cfgs = [
+autonomous_agents_cfgs = [
     {
         "name": "PLACEHOLDER",
         "description": "",

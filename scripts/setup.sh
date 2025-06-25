@@ -23,7 +23,7 @@ eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
 PYTHON_VERSION="3.11.10"
-VIRTUALENV_NAME="agent_lcp"
+VIRTUALENV_NAME="agent_cpl"
 
 # Install Python 3.11.10 if not installed
 if ! pyenv versions --bare | grep -q "^${PYTHON_VERSION}$"; then

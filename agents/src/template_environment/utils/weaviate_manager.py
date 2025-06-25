@@ -34,7 +34,10 @@ class VectorManager:
         ------------------------------------
         """
         self._client = weaviate.Client(
-            f"http://{os.environ.get('WEAVIATE_HOST')}:{os.environ.get('WEAVIATE_PORT')}"
+            (
+                f"http://{os.environ.get('WEAVIATE_HOST')}:"
+                f"{os.environ.get('WEAVIATE_PORT')}"
+            )
         )
 
     def _traverse_map(self, schema: dict) -> List:
@@ -71,7 +74,8 @@ class VectorManager:
                         )
                     else:
                         temp.append({"name": k, "dataType": self.TYPE_MAP[v]})
-            except:
+            except Exception as e:
+                print(e)
                 return []
         return temp
 
@@ -249,7 +253,8 @@ class VectorManager:
         ------------------------------------
         collection_name:    Name of collection
                             example:  'Faces'
-        document:           A single document. To update embedding, include 'vector' key in the dict.
+        document:           A single document. To update embedding, include 'vector'
+                            key in the dict.
                             example: {
                                 "doc_id": "72671",
                                 "vector": []
@@ -274,7 +279,10 @@ class VectorManager:
             valid_vec_type = [numpy.ndarray, torch.Tensor, list]
             if not type(document["vector"]) in valid_vec_type:
                 return {
-                    "response": "Invalid vector type. Supported vector types: numpy.ndarray, torch.Tensor, list"
+                    "response": (
+                        "Invalid vector type. Supported vector types:"
+                        " numpy.ndarray, torch.Tensor, list"
+                    )
                 }
             embedding = document["vector"]
             document.pop("vector")
@@ -292,14 +300,16 @@ class VectorManager:
         self, collection_name: str, documents: Union[list, dict]
     ) -> dict:
         """
-        Batch create documents in a specified collection to reduce the time taken to create a large set of documents.
-        If any documents already exists, it will be skipped and the id will be returned in the response.
+        Batch create documents in a specified collection to reduce the time taken to
+        create a large set of documents. If any documents already exists, it will be
+        skipped and the id will be returned in the response.
 
         INPUT:
         ------------------------------------
         collection_name:    Name of collection
                             example shape:  'Faces'
-        documents:          One or more documents. To update embedding, include 'vector' key in the dict.
+        documents:          One or more documents. To update embedding, include 'vector'
+                            key in the dict.
                             example: {
                                 "doc_id": "72671",
                                 "vector": []
@@ -307,12 +317,15 @@ class VectorManager:
 
         RETURNS:
         ------------------------------------
-        dict:               Dictionary with the success code 200 or errors, along with the list of existing document IDs
-                            example: {'response': "200", 'existing_documents': ['72671', '72672']]}
+        dict:               Dictionary with the success code 200 or errors, along with
+                            the list of existing document IDs
+                            example: {'response': "200",
+                                      'existing_documents': ['72671', '72672']]
+                                     }
 
         """
         collection_name = collection_name.capitalize()
-        if type(documents) == dict:
+        if isinstance(documents, dict):
             return self._create_single_document(collection_name, documents)
         if len(documents) == 1:
             return self._create_single_document(collection_name, documents[0])
@@ -333,7 +346,9 @@ class VectorManager:
                 # Check if the doc_id attribute exist
                 if not doc.get("doc_id"):
                     return {
-                        "response": f"Lack of doc_id as an attribute in property for doc {i}"
+                        "response": (
+                            f"Lack of doc_id as an attribute in property for doc {i}"
+                        )
                     }
                 # Check if the id exist
                 id_exists = self._exists(collection_name, doc["doc_id"])
@@ -345,7 +360,10 @@ class VectorManager:
                     valid_vec_type = [numpy.ndarray, torch.Tensor, list]
                     if not type(doc["vector"]) in valid_vec_type:
                         return {
-                            "response": "Invalid vector type. Supported vector types: numpy.ndarray, torch.Tensor, list"
+                            "response": (
+                                "Invalid vector type. Supported vector types: "
+                                "numpy.ndarray, torch.Tensor, list"
+                            )
                         }
                     embedding = doc["vector"]
                     doc.pop("vector")
@@ -356,7 +374,7 @@ class VectorManager:
                     batch.add_data_object(doc, collection_name, vector=embedding)
                 except Exception as e:
                     if "vector lengths don't match" in str(e):
-                        print(f"response: Mismatch vector length, creation failed")
+                        print("response: Mismatch vector length, creation failed")
                     else:
                         return {"response": f"{e}"}
 
@@ -381,7 +399,9 @@ class VectorManager:
         collection_name = collection_name.capitalize()
         if not self._exists(collection_name, doc_id):
             return {
-                "response": "Attempt to read a non-existent document. No reading is done"
+                "response": (
+                    "Attempt to read a non-existent document. " "No reading is done"
+                )
             }
         # Create filter and search
         uuid = self._id2uuid(collection_name, doc_id)
@@ -411,10 +431,12 @@ class VectorManager:
         query_string:       Query string for bm25 text similarity search
                             example: "a dog standing next to an orange cat"
         target_embedding:   Query embedding to find document with high cosine similarity
-                            example: torch.Tensor([0.5766745, 0.9341823, 0.7021697, 0.54776406, 0.013553977])
-        top_k:              integer value for the number of documents to return. Default is 1
+                            example: torch.Tensor([0.5766745, ..., 0.013553977])
+        top_k:              integer value for the number of documents to return.
+                            Default is 1
                             example: 3
-        alpha:              Weight of BM25 or vector search. 0 for pure keyword search, 1 for pure vector search. Default is pure vector search.
+        alpha:              Weight of BM25 or vector search. 0 for pure keyword search,
+                            1 for pure vector search. Default is pure vector search.
 
         RETURNS:
         ------------------------------------
@@ -426,7 +448,7 @@ class VectorManager:
                                     'id': '9d62d87b-bb17-4736-8714-e1455ffa2b01',
                                     'lastUpdateTimeUnix': 1671076617122,
                                     'properties': {'doc_id': '11', 'new': '2'},
-                                    'vector': [0.5766745, 0.9341823, 0.7021697, 0.54776406, 0.013553977],
+                                    'vector': [0.5766745, ..., 0.013553977],
                                     'vectorWeights': None,
                                     'certainty': 0.9999999403953552
                                 }]
@@ -507,12 +529,14 @@ class VectorManager:
         collection_name = collection_name.capitalize()
         if not self._exists(collection_name, doc_id):
             return {
-                "response": "Attempt to read a non-existent document. No reading is done"
+                "response": (
+                    "Attempt to update a non-existent document. " "No reading is done"
+                )
             }
         if "doc_id" in document:
             del document["doc_id"]
         if len(document.keys()) == 0:
-            return {"response": f"No properties to update."}
+            return {"response": "No properties to update."}
         uuid = self._id2uuid(collection_name, doc_id)
         if "uuid" in uuid:
             temp = copy.deepcopy(document)

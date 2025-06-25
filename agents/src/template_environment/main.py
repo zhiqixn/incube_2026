@@ -1,14 +1,12 @@
 import asyncio
-import os
-
 from autogen_core import SingleThreadedAgentRuntime
 from autogen_core.models import SystemMessage, UserMessage
 from autogen_core import TopicId
 
 import utils.tracer as tracer
-# from agents.base_agents import 
-from agents.base_agent import BasePLACEHOLDERAgent
-from agents.triage_agent import Triage
+
+# from agents.base_agents import
+from agents.base_agent import BaseAgent
 from agents.user_agent import UserAgent
 from configs import agents_config
 from configs import runtime_config
@@ -25,7 +23,9 @@ logger = get_logger()
 async def main():
     # instantiate trace provider
     logger.info("Instantiating trace provider")
-    trace_provider = tracer.get_phoenix_tracer_provider(project_name="PLACEHOLDER_project_name")
+    trace_provider = tracer.get_phoenix_tracer_provider(
+        project_name="PLACEHOLDER_project_name"
+    )
     # instantiate runtime
     logger.info("Instantiating runtime")
     runtime = SingleThreadedAgentRuntime(tracer_provider=trace_provider)
@@ -43,32 +43,28 @@ async def main():
                 agent_topic_type=user_cfgs["agent_topic_type"],
             ),
         )
-    for triage in agents_config.triage_cfgs:
-        agents[triage["name"]] = await Triage.register(
-            runtime,
-            type=triage["name"],
-            factory=lambda triage_cfgs=triage: Triage(
-                description=triage_cfgs["description"],
-                system_message=SystemMessage(content=triage_cfgs["system_message"]),
-                model_client=triage_cfgs["model"],
-                publish_topics=triage_cfgs["topics"],
-                delegate_tools=triage_cfgs["delegate_tools"],
-            ),
-        )
-    for agent in agents_config.PLACEHOLDER_cfgs:
-        agents[agent["name"]] = await BasePLACEHOLDERAgent.register(
+    for agent in agents_config.autonomous_agents_cfgs:
+        agents[agent["name"]] = await BaseAgent.register(
             runtime,
             type=agent["name"],
-            factory=lambda agent_cfgs=agent: BasePLACEHOLDERAgent(
+            factory=lambda agent_cfgs=agent: BaseAgent(
                 description=agent_cfgs["description"],
                 system_message=SystemMessage(content=agent_cfgs["system_message"]),
                 model_client=agent_cfgs["model"],
-                # tools=[],
-                delegate_tools=agent_cfgs["delegate_tools"],
+                delegate_tools=(
+                    agent_cfgs["delegate_tools"]
+                    if "delegate_tools" in agent_cfgs
+                    else []
+                ),
+                tools=agent_cfgs["tools"] if "tools" in agent_cfgs else [],
+                broadcast_topic_type=(
+                    agent_cfgs["broadcast_topic"]
+                    if "broadcast_topic" in agent_cfgs
+                    else None
+                ),
                 publish_topics=agent_cfgs["topics"],
             ),
         )
-
 
     logger.info("Instantiating message queue")
     await setup_messaging_topics(runtime, agents, "PLACEHOLDER_BROADCAST")

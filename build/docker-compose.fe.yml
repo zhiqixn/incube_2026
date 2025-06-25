@@ -5,7 +5,7 @@ networks:
 
 services:
   frontend:
-    image: lcp-frontend:0.0.2
+    image: cpl-frontend:0.0.2
     build:
       context: ../frontend
       dockerfile: build/Dockerfile

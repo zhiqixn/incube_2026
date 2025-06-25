@@ -1,16 +1,17 @@
 import os
 
-from autogen_ext.models.openai import OpenAIChatCompletionClient
-
-MODEL_ENDPOINT = f"http://{os.environ['VLLM_HOST']}:{os.environ['VLLM_H_PORT']}/v1"
-MODEL_NAME = os.environ["MODEL_NAME"]
+MODEL_ENDPOINT = os.environ.get(
+    "MODEL_ENDPOINT", "https://api.openai.com/v1/chat/completions"
+)
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-2024-08-06")
+MODEL_API_KEY = os.environ.get("MODEL_API_KEY", "EMPTY")
 
 
 model_cfg = {
     "base_url": MODEL_ENDPOINT,
     "model": MODEL_NAME,
     "temperature": 0,
-    "api_key": "EMPTY",
+    "api_key": MODEL_API_KEY,
     "model_capabilities": {
         "vision": False,
         "function_calling": True,

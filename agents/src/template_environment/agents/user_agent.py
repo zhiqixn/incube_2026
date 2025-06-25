@@ -18,7 +18,7 @@ class UserAgent(RoutedAgent):
     @message_handler
     async def handle_user_message(self, message: UserTask, ctx: MessageContext) -> None:
         """
-        Handle a UserTask message by broadcasting it to the triage agent.
+        Handle a UserTask message by broadcasting it to an agent.
 
         Args:
             message: The UserTask message to be handled.

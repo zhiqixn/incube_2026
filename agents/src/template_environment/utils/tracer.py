@@ -8,11 +8,13 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from phoenix.otel import register
 from openinference.instrumentation.openai import OpenAIInstrumentor
-from utils.tracer_fwd import ForwardingSpanProcessor
+
+# from utils.tracer_fwd import ForwardingSpanProcessor
 
 from utils.logger import get_logger
 
 logger = get_logger()
+
 
 def get_phoenix_tracer_provider(project_name: str):
     """
@@ -22,7 +24,8 @@ def get_phoenix_tracer_provider(project_name: str):
         The tracer provider instance registered by Phoenix.
     """
     otel_endpoint = os.environ.get("PHOENIX_ENDPOINT")
-    msg_fwd = ForwardingSpanProcessor(OTLPSpanExporter(endpoint=otel_endpoint))
+    # msg_fwd = ForwardingSpanProcessor(OTLPSpanExporter(endpoint=otel_endpoint))
+    msg_fwd = SimpleSpanProcessor(OTLPSpanExporter(endpoint=otel_endpoint))
     trace_provider = register(project_name=project_name, endpoint=otel_endpoint)
     trace_provider.add_span_processor(msg_fwd)
     OpenAIInstrumentor().instrument(tracer_provider=trace_provider)

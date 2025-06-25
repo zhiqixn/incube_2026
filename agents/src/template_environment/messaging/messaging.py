@@ -1,9 +1,8 @@
-import asyncio
-from typing import Dict, List
+from typing import Dict
 
 from autogen_core import SingleThreadedAgentRuntime
 from autogen_core import AgentId
-from autogen_core import RoutedAgent, TypeSubscription
+from autogen_core import TypeSubscription
 
 
 async def setup_messaging_topics(
@@ -19,7 +18,8 @@ async def setup_messaging_topics(
     broadcast messages.
 
     Args:
-        runtime (SingleThreadedAgentRuntime): The runtime environment managing the agents.
+        runtime (SingleThreadedAgentRuntime): The runtime environment managing the
+        agents.
         agents (List[RoutedAgent]): A list of agents to set up messaging topics for.
         broadcast_topic_type (str, optional): The topic type for broadcast messages.
             Defaults to "PLACEHOLDER_BROADCAST".
@@ -34,6 +34,7 @@ async def setup_messaging_topics(
         )
 
     for _, agent_id in agents.items():
+        # for all agents except users, subscribe to the broadcast topic
         if agent_id.type != "User":
             await runtime.add_subscription(
                 TypeSubscription(
