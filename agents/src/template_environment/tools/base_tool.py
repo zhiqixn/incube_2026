@@ -16,6 +16,6 @@ def PLACEHOLDER_tool() -> str:
     return ""
 
 
-find_lab_order_tool = FunctionTool(
+placeholder_tool = FunctionTool(
     PLACEHOLDER_tool_cfg, description=PLACEHOLDER_tool_cfg["description"]
 )
