@@ -1,3 +1,5 @@
+import os
+
 # TODO: Replace all PLACEHOLDER with concrete names
 
 delegate_cfg = {
@@ -24,11 +26,11 @@ rag_cfg = {
         "for this tool."
     ),
     "weaviate_client_configs": {
-        "http_host": "weaviate",
-        "http_port": 8081,
+        "http_host": os.environ.get("WEAVIATE_HOST", "weaviate"),
+        "http_port": os.environ.get("WEAVIATE_PORT", 8081),
         "http_secure": False,
-        "grpc_host": "weaviate",
-        "grpc_port": 50051,
+        "grpc_host": os.environ.get("WEAVIATE_HOST", "weaviate"),
+        "grpc_port": os.environ.get("WEAVIATE_GRPC_PORT", 50051),
         "grpc_secure": False,
     },
     "weaviate_collection": "documents",

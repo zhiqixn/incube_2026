@@ -5,7 +5,7 @@ networks:
 
 services:
   frontend:
-    image: cpl-frontend:0.0.2
+    image: cpl-frontend:${AGENT_VERSION}
     build:
       context: ../frontend
       dockerfile: build/Dockerfile
