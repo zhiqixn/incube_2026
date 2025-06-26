@@ -1,6 +1,6 @@
 [flake8]
 # match black
-ignore = F403, F405, E402
+ignore = F403, F405, E402, F401
 max-line-length = 88
 extend-ignore = E203
 per-file-ignores =

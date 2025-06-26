@@ -16,6 +16,7 @@ from autogen_core.models import (
     CreateResult,
     FunctionExecutionResult,
     FunctionExecutionResultMessage,
+    UserMessage,
     LLMMessage,
     SystemMessage,
 )
@@ -77,57 +78,63 @@ class BaseAgent(RoutedAgent):
             await self.set_delegate_tools_schema()
 
         if self._broadcast_topic_type:
-            # add message to chat history
-            self._chat_history.extend(message.context)
-
-            # broadcast the message to all agents
-            logger.info("Broadcasting message to all agents")
-            await self.publish_message(
-                message,
-                topic_id=TopicId(self._broadcast_topic_type, source=self.id.key),
-            )
-
-            available_tools = (
-                self._tool_schema + self._delegate_tool_schema
-                if self._delegate_tool_schema
-                else self._tool_schema
-            )
-
-            # Run user task
-            llm_result = await self._model_client.create(
-                messages=[self._system_message] + self._chat_history,
-                tools=available_tools,
-                cancellation_token=ctx.cancellation_token,
-            )
-
-            logger.info("LLM result: %s", llm_result)
-
-            # if the LLM returns a list of function calls
-            # handle function calls
-            if isinstance(llm_result.content, list) and all(
-                isinstance(m, FunctionCall) for m in llm_result.content
-            ):
-                self._tool_result = []
-                self._delegate_tool_result = []
-                await self.handle_function_calls(llm_result, ctx)
-
-            # if LLM response is not a list of function calls, send it back to user
-            else:
-                await self.publish_message(
-                    AgentResponse(
-                        reply_to_topic_type=self.id.type,
-                        context=[
-                            AssistantMessage(
-                                content=llm_result.content, source=self.id.type
-                            )
-                        ],
-                    ),
-                    topic_id=TopicId(message.reply_to_topic_type, source=self.id.key),
-                )
+            if not message.broadcast:
                 # add message to chat history
-                self._chat_history.append(
-                    AssistantMessage(content=llm_result.content, source=self.id.type)
+                self._chat_history.extend(message.context)
+
+                message.broadcast = True
+                # broadcast the message to all agents
+                logger.info("Broadcasting message to all agents")
+                await self.publish_message(
+                    message,
+                    topic_id=TopicId(self._broadcast_topic_type, source=self.id.key),
                 )
+
+                available_tools = (
+                    self._tool_schema + self._delegate_tool_schema
+                    if self._delegate_tool_schema
+                    else self._tool_schema
+                )
+
+                # Run user task
+                llm_result = await self._model_client.create(
+                    messages=[self._system_message] + self._chat_history,
+                    tools=available_tools,
+                    cancellation_token=ctx.cancellation_token,
+                )
+
+                logger.info("LLM result: %s", llm_result)
+
+                # if the LLM returns a list of function calls
+                # handle function calls
+                if isinstance(llm_result.content, list) and all(
+                    isinstance(m, FunctionCall) for m in llm_result.content
+                ):
+                    self._tool_result = []
+                    self._delegate_tool_result = []
+                    await self.handle_function_calls(llm_result, ctx)
+
+                # if LLM response is not a list of function calls, send it back to user
+                else:
+                    await self.publish_message(
+                        AgentResponse(
+                            reply_to_topic_type=self.id.type,
+                            context=[
+                                AssistantMessage(
+                                    content=llm_result.content, source=self.id.type
+                                )
+                            ],
+                        ),
+                        topic_id=TopicId(
+                            message.reply_to_topic_type, source=self.id.key
+                        ),
+                    )
+                    # add message to chat history
+                    self._chat_history.append(
+                        AssistantMessage(
+                            content=llm_result.content, source=self.id.type
+                        )
+                    )
         else:
             self._system_message.content += (
                 f"\n\nCurrent task context:{message.context[0].content}"

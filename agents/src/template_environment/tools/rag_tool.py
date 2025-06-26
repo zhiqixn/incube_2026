@@ -4,7 +4,7 @@ Tool used for RAG retrieval
 
 from autogen_core.tools import FunctionTool
 
-from config.tools_config import rag_cfg
+from configs.tools_config import rag_cfg
 from typing import List
 
 import requests

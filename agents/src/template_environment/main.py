@@ -73,6 +73,7 @@ async def main():
         UserTask(
             reply_to_topic_type="User",
             context=[UserMessage(content=runtime_config.prompt, source="User")],
+            broadcast=False,
         ),
         topic_id=TopicId("User", "PLACEHOLDER_ID"),
     )

@@ -1,9 +1,10 @@
 pandas==2.2.3
 pyyaml==6.0.2
 nbclassic==1.2.0
+autogen-core==0.6.1
 autogen-agentchat==0.6.1 # TODO: Consider new version of autogens
 autogen-ext==0.6.1
-autogenstudio==0.4.2.2
+autogenstudio
 weaviate-client==4.5.1
 elasticsearch==8.13.0
 arize-phoenix==8.20.0

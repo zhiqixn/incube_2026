@@ -15,6 +15,7 @@ class UserTask(BaseModel):
 
     reply_to_topic_type: str
     context: List[LLMMessage]
+    broadcast: bool
 
 
 class AgentTask(BaseModel):
