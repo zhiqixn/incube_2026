@@ -1,5 +1,4 @@
 from autogen_core.tools import FunctionTool
-
 from configs.tools_config import PLACEHOLDER_tool_cfg
 
 # TODO: Replace all PLACEHOLDER with concrete names

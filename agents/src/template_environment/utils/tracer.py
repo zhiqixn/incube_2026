@@ -1,5 +1,6 @@
 import os
 
+from openinference.instrumentation.openai import OpenAIInstrumentor
 from openinference.semconv.resource import ResourceAttributes
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -7,11 +8,10 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from phoenix.otel import register
-from openinference.instrumentation.openai import OpenAIInstrumentor
+from utils.logger import get_logger
 
 # from utils.tracer_fwd import ForwardingSpanProcessor
 
-from utils.logger import get_logger
 
 logger = get_logger()
 

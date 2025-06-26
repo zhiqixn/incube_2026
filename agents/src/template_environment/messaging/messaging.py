@@ -1,8 +1,6 @@
 from typing import Dict
 
-from autogen_core import SingleThreadedAgentRuntime
-from autogen_core import AgentId
-from autogen_core import TypeSubscription
+from autogen_core import AgentId, SingleThreadedAgentRuntime, TypeSubscription
 
 
 async def setup_messaging_topics(

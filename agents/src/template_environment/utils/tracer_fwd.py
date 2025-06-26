@@ -1,13 +1,11 @@
-from opentelemetry.sdk.trace import SpanProcessor
-from opentelemetry.sdk.trace.export import SpanExporter
 import json
 from typing import Any, Dict, Optional
-from opentelemetry.trace import Span
-from opentelemetry.sdk.trace import ReadableSpan
+
 import requests
-from autogen_core.models import (
-    UserMessage,
-)
+from autogen_core.models import UserMessage
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor
+from opentelemetry.sdk.trace.export import SpanExporter
+from opentelemetry.trace import Span
 
 
 class ForwardingSpanProcessor(SpanProcessor):

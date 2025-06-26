@@ -1,7 +1,6 @@
 from models.model import *
 from tools import *
 
-
 user_cfgs = [
     {
         "name": "User",

@@ -1,18 +1,16 @@
 import asyncio
-from autogen_core import SingleThreadedAgentRuntime
-from autogen_core.models import SystemMessage, UserMessage
-from autogen_core import TopicId
 
 import utils.tracer as tracer
 
 # from agents.base_agents import
 from agents.base_agent import BaseAgent
 from agents.user_agent import UserAgent
-from configs import agents_config
-from configs import runtime_config
+from autogen_core import SingleThreadedAgentRuntime, TopicId
+from autogen_core.models import SystemMessage, UserMessage
+from configs import agents_config, runtime_config
 from messaging.messaging import setup_messaging_topics
-from utils.logger import get_logger, setup_logger
 from messaging.messaging_protocols import UserTask
+from utils.logger import get_logger, setup_logger
 
 # TODO: Replace all PLACEHOLDER with concrete names
 

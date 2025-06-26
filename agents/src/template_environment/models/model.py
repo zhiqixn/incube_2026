@@ -1,5 +1,5 @@
-from configs.models_config import *
 from autogen_ext.models.openai import OpenAIChatCompletionClient
+from configs.models_config import *
 
 model = OpenAIChatCompletionClient(
     base_url=model_cfg["base_url"],

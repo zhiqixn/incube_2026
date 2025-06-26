@@ -1,6 +1,4 @@
-from autogen_core import MessageContext, TopicId
-from autogen_core import RoutedAgent, message_handler
-
+from autogen_core import MessageContext, RoutedAgent, TopicId, message_handler
 from messaging.messaging_protocols import AgentResponse, UserTask
 from utils.logger import get_logger
 
