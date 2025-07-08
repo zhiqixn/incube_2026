@@ -43,3 +43,13 @@ rag_cfg = {
     "embedding_api_endpoint": "http://localhost:8000/embeddings",
     "embedding_model": "bge-m3",
 }
+
+think_cfg = {
+    "description": (
+        "Use the tool to think about the task and context. "
+        "It will not obtain new information, but just log the thought. "
+        "Use it when complex reasoning or brainstorming is needed."
+        "The tool simply logs your thought process for better transparency "
+        "and does not execute any code or make changes."
+    )
+}
