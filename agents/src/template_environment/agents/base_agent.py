@@ -371,19 +371,49 @@ class BaseAgent(RoutedAgent):
 
                 # run tool
                 try:
-                    tool_result = await self._tools[call.name].run_json(
-                        arguments, ctx.cancellation_token
-                    )
-                    # save tool results
-                    self._tool_result.append(
-                        FunctionExecutionResult(
-                            name=call.name,
-                            content=self._tools[call.name].return_value_as_string(
-                                tool_result
-                            ),
-                            call_id=call.id,
+                    if call.name == "condenser":
+
+                        # breakpoint()
+                        condensed_history = []
+                        # condenser_model = model
+                        for message in self._chat_history:
+
+                            if message.type == "FunctionExecutionResultMessage":
+                                # print(message)
+                                message_arg = {"message": message.content[0].content}
+                                tool_result = await self._tools[call.name].run_json(
+                                    message_arg, ctx.cancellation_token
+                                )
+                                message.content[0].content = tool_result
+                                # print(message)
+                            condensed_history.append(message)
+                        self._chat_history = condensed_history
+
+                        self._tool_result.append(
+                            FunctionExecutionResult(
+                                name=call.name,
+                                content=self._tools[call.name].return_value_as_string(
+                                    "Condenser executed"
+                                ),
+                                call_id=call.id,
+                            )
                         )
-                    )
+                    # save tool results
+                    else:
+                        tool_result = await self._tools[call.name].run_json(
+                            arguments, ctx.cancellation_token
+                        )
+
+                        self._tool_result.append(
+                            FunctionExecutionResult(
+                                name=call.name,
+                                content=self._tools[call.name].return_value_as_string(
+                                    tool_result
+                                ),
+                                call_id=call.id,
+                            )
+                        )
+                    logger.info("Tool %s executed.", call.name)
                 except Exception as e:
                     self._tool_result.append(
                         FunctionExecutionResult(

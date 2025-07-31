@@ -29,7 +29,8 @@ def think_about(thought_task: str) -> str:
     Returns:
         str: A formatted string containing the logged thought.
     """
-    return f"Thought: {thought_task}"
+    response = "The thought has been logged."
+    return response
 
 
 think_tool = FunctionTool(think_about, description=think_cfg["description"])
