@@ -1,0 +1,31 @@
+import os
+
+MODEL_ENDPOINT = os.environ.get("MODEL_ENDPOINT", "http://192.168.100.13:5000/v1")
+COMPLETION_ENDPOINT = "http://192.168.100.13:5000/v1/chat/completions"
+MODEL_NAME = os.environ.get("MODEL_NAME", "mistral-small-2506")
+MODEL_API_KEY = os.environ.get("MODEL_API_KEY", "EMPTY")
+
+
+model_cfg = {
+    "base_url": MODEL_ENDPOINT,
+    "model": MODEL_NAME,
+    "temperature": 0,
+    "api_key": MODEL_API_KEY,
+    "model_capabilities": {
+        "vision": False,
+        "function_calling": True,
+        "json_output": True,
+    },
+}
+
+model_chat_completion_cfg = {
+    "base_url": COMPLETION_ENDPOINT,
+    "model": MODEL_NAME,
+    "temperature": 0,
+    "api_key": MODEL_API_KEY,
+    "model_capabilities": {
+        "vision": False,
+        "function_calling": True,
+        "json_output": True,
+    },
+}
