@@ -59,7 +59,8 @@ class BaseAgent(RoutedAgent):
         self._broadcast_topic = broadcast_topic
         self._memory = memory
         self._state = state
-        self._chat_history: dict[str, List[LLMMessage]] = {}
+        self._global_memory: dict[str, List] = {}
+        self._local_memory = []
         self._delegated_agents = []
         self._delegation_queue = []
         self._sender_agent_topic_type = ""
@@ -83,7 +84,7 @@ class BaseAgent(RoutedAgent):
         # designate message soure topic type
         self._sender_agent_topic_type = message.reply_to_topic_type
 
-        self._chat_history["user_task"] = []
+        self._global_memory["user_task"] = []
 
         # set delegate tool schema
         if not self._delegate_tool_schema and (self._agent_topics and self._handoff):
@@ -101,8 +102,8 @@ class BaseAgent(RoutedAgent):
                 )
 
         if not message.broadcast:
-            print("Received user task")
-            self._chat_history["user_task"].extend(message.context)
+            logger.info("Received user task")
+            self._global_memory["user_task"].append(message.context[0].content)
             available_tools = (
                 self._tool_schema + self._delegate_tool_schema
                 if self._delegate_tool_schema
@@ -113,13 +114,16 @@ class BaseAgent(RoutedAgent):
             current_span.set_attribute("available tools", str(available_tools))
 
             memory = []
-            for state, messages in self._chat_history.items():
+            for state, messages in self._global_memory.items():
                 if state in self._memory:
+
                     memory.extend(messages)
+
+            model_context = UserMessage(content=(memory), source="User")
 
             # analyse agent task
             llm_result = await self._model.create(
-                messages=[self._system_message] + memory,
+                messages=[self._system_message] + [model_context],
                 tools=available_tools,
                 cancellation_token=ctx.cancellation_token,
             )
@@ -136,7 +140,7 @@ class BaseAgent(RoutedAgent):
             else:
                 await self.transfer_control(llm_result, ctx)
         else:
-            self._chat_history["user_task"].extend(message.context)
+            self._global_memory["user_task"].append(message.context[0].content)
 
     @message_handler
     async def handle_agent_task(self, message: AgentTask, ctx: MessageContext) -> None:
@@ -160,7 +164,7 @@ class BaseAgent(RoutedAgent):
         logger.info("%s received task", self.id.type)
 
         # update agent memory
-        self._chat_history = message.chat_history
+        self._global_memory = message.global_memory
 
         # update topic type of agent to reply to
         self._sender_agent_topic_type = message.reply_to_topic_type
@@ -179,13 +183,17 @@ class BaseAgent(RoutedAgent):
 
         # add context to llm based on relevant memory states
         memory = []
-        for state, messages in self._chat_history.items():
+        for state, messages in self._global_memory.items():
             if state in self._memory:
                 memory.extend(messages)
 
+        model_context = UserMessage(
+            content=([message.context[0].content] + ["**MODEL CONTEXT**"] + memory),
+            source="User",
+        )
         # analyse agent task
         llm_result = await self._model.create(
-            messages=[self._system_message] + memory + message.context,
+            messages=[self._system_message] + [model_context],
             tools=available_tools,
             cancellation_token=ctx.cancellation_token,
         )
@@ -267,7 +275,7 @@ class BaseAgent(RoutedAgent):
                             AgentTask(
                                 reply_to_topic_type=self.id.type,
                                 context=messages,
-                                chat_history=self._chat_history,
+                                global_memory=self._global_memory,
                             ),
                             topic_id=TopicId(agent, source=self.id.key),
                         )
@@ -276,13 +284,15 @@ class BaseAgent(RoutedAgent):
         if len(self._delegated_agents) == 0 and len(self._delegation_queue) == 0:
 
             if self._tool_result:
-                tool_result_messages = FunctionExecutionResultMessage(
-                    content=self._tool_result + self._delegate_tool_result
+                self._local_memory.append(
+                    FunctionExecutionResultMessage(
+                        content=self._tool_result + self._delegate_tool_result
+                    )
                 )
 
             else:
-                tool_result_messages = FunctionExecutionResultMessage(
-                    content=self._delegate_tool_result
+                self._local_memory.append(
+                    FunctionExecutionResultMessage(content=self._delegate_tool_result)
                 )
 
             self._tool_result = []
@@ -299,13 +309,13 @@ class BaseAgent(RoutedAgent):
 
             # add context to llm based on relevant memory states
             memory = []
-            for state, messages in self._chat_history.items():
+            for state, messages in self._global_memory.items():
                 if state in self._memory:
-                    memory.extend(messages)
+                    memory.append(messages)
 
             # analyse agent task
             llm_result = await self._model.create(
-                messages=[self._system_message] + memory + tool_result_messages,
+                messages=[self._system_message] + memory + self._local_memory,
                 tools=available_tools,
                 cancellation_token=ctx.cancellation_token,
             )
@@ -331,23 +341,19 @@ class BaseAgent(RoutedAgent):
                 )
 
                 # add assistant message output to memory
-                if self._state not in self._chat_history.keys():
-                    self._chat_history[self._state] = []
+                if self._state not in self._global_memory.keys():
+                    self._global_memory[self._state] = []
                     logger.info("New memory state: %s", self._state)
-                self._chat_history[self._state].append(
-                    AssistantMessage(content=llm_result.content, source=self.id.type)
-                )
+                self._global_memory[self._state].append(llm_result.content)
 
     async def transfer_control(
         self, llm_result: CreateResult, ctx: MessageContext
     ) -> None:
         # add assistant message output to memory
-        if self._state not in self._chat_history.keys():
-            self._chat_history[self._state] = []
+        if self._state not in self._global_memory.keys():
+            self._global_memory[self._state] = []
             logger.info("New memory state: %s", self._state)
-        self._chat_history[self._state].append(
-            AssistantMessage(content=llm_result.content, source=self.id.type)
-        )
+        self._global_memory[self._state].append(llm_result.content)
 
         if not self._handoff and self._agent_topics:
             transfer_targets_desc = await asyncio.gather(
@@ -357,19 +363,16 @@ class BaseAgent(RoutedAgent):
                 ]
             )
 
-            memory = []
-            for state, messages in self._chat_history.items():
-                if state in self._memory:
-                    memory.extend(messages)
-
             for transfer_target, desc in zip(self._agent_topics, transfer_targets_desc):
                 transfer_message = UserMessage(
                     content=(
                         "Based on the agent description:\n\n"
                         f"{desc}\n\n"
-                        "Relay the initial user task and provide a succinct "
-                        "task assignment for the {transfer_target} agent "
-                        "required to fufill the user task, "
+                        "Provide a concise but detailed task assignment "
+                        f"for the {transfer_target} agent "
+                        "required to fufill the user task: ",
+                        self._global_memory["user_task"][0],
+                        "Relay the original user task to the agent as well.",
                     ),
                     source="User",
                 )
@@ -388,11 +391,12 @@ class BaseAgent(RoutedAgent):
                                 content=transfer_response.content, source=self.id.type
                             )
                         ],
-                        chat_history=self._chat_history,
+                        global_memory=self._global_memory,
                     ),
                     topic_id=TopicId(transfer_target, source=self.id.key),
                 )
         else:
+
             await self.publish_message(
                 AgentResponse(
                     reply_to_topic_type=self.id.type,
@@ -426,6 +430,9 @@ class BaseAgent(RoutedAgent):
         Returns:
             None
         """
+        self._local_memory.append(
+            AssistantMessage(content=llm_result.content, source=self.id.type)
+        )
 
         delegate_targets = []
         # Process each function call.
@@ -446,13 +453,13 @@ class BaseAgent(RoutedAgent):
                         # for message in self._chat_history:
 
                         #     if message.type == "FunctionExecutionResultMessage":
-                        #         # print(message)
+
                         #         message_arg = {"message": message.content[0].content}
                         #         tool_result = await self._tools[call.name].run_json(
                         #             message_arg, ctx.cancellation_token
                         #         )
                         #         message.content[0].content = tool_result
-                        #         # print(message)
+
                         #     condensed_history.append(message)
                         # self._chat_history = condensed_history
 
@@ -492,6 +499,7 @@ class BaseAgent(RoutedAgent):
                     )
 
             elif call.name in self._delegate_tools:
+
                 # run delegate tool
                 try:
                     next_delegate_targets = await self._delegate_tools[
@@ -573,13 +581,17 @@ class BaseAgent(RoutedAgent):
                             AgentTask(
                                 reply_to_topic_type=self.id.type,
                                 context=messages,
-                                chat_history=self._chat_history,
+                                global_memory=self._global_memory,
                             ),
                             topic_id=TopicId(agent, source=self.id.key),
                         )
                     else:
                         self._delegation_queue.append(target)
         else:
+
+            self._local_memory.append(
+                FunctionExecutionResultMessage(content=self._tool_result)
+            )
 
             available_tools = (
                 self._tool_schema + self._delegate_tool_schema
@@ -589,17 +601,16 @@ class BaseAgent(RoutedAgent):
 
             # add context to llm based on relevant memory states
             memory = []
-            for state, messages in self._chat_history.items():
+            for state, messages in self._global_memory.items():
                 if state in self._memory:
-                    memory.extend(messages)
+                    memory.append(messages)
 
             # analyse agent task
             llm_result = await self._model.create(
                 messages=[
                     self._system_message,
                     *memory,
-                    AssistantMessage(content=llm_result.content, source=self.id.type),
-                    FunctionExecutionResultMessage(content=self._tool_result),
+                    *self._local_memory,
                 ],
                 tools=available_tools,
                 cancellation_token=ctx.cancellation_token,
@@ -608,7 +619,7 @@ class BaseAgent(RoutedAgent):
             if isinstance(llm_result.content, list) and all(
                 isinstance(m, FunctionCall) for m in llm_result.content
             ):
-
+                self._tool_result = []
                 self._delegate_tool_result = []
                 await self.handle_function_calls(llm_result, ctx)
 

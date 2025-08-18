@@ -26,8 +26,9 @@ autonomous_agents_cfgs = [
         "description": """A researcher responsible for producing a detailed fundamental
 analysis of a company, including financial documents, insider transactions, and
 company profile, to support trading decisions.""",
-        "system_message": """You are a researcher tasked with analyzing fundamental
-information over the past week about a company.
+        "system_message": """
+You are a researcher tasked with analyzing fundamental information over the past
+week about a company.
 
 Please write a comprehensive report of the company's fundamental information such as
 financial documents, company profile, basic company financials, company financial
@@ -60,6 +61,7 @@ in the report, organized and easy to read.
         "system_message": """You are a trading assistant tasked with analyzing
 financial markets. Your role is to select the **most relevant indicators** for a
 given market condition or trading strategy from the following list.
+
 The goal is to choose up to **8 indicators** that provide complementary insights
 without redundancy. Categories and each category's indicators are:
 
@@ -72,7 +74,7 @@ market trend and identify golden/death cross setups. Tips: It reacts slowly;
 best for strategic trend confirmation rather than frequent trading entries.
 - close_10_ema: 10 EMA: A responsive short-term average. Usage: Capture quick
 shifts in momentum and potential entry points. Tips: Prone to noise in choppy
-markets; use alongside longer averages for filtering false signals.
+markets; use alongside longer averages for filtering False signals.
 
 MACD Related:
 - macd: MACD: Computes momentum via differences of EMAs. Usage: Look for
@@ -80,7 +82,7 @@ crossovers and divergence as signals of trend changes. Tips: Confirm with
 other indicators in low-volatility or sideways markets.
 - macds: MACD Signal: An EMA smoothing of the MACD line. Usage: Use crossovers
 with the MACD line to trigger trades. Tips: Should be part of a broader strategy
-to avoid false positives.
+to avoid False positives.
 - macdh: MACD Histogram: Shows the gap between the MACD line and its signal.
 Usage: Visualize momentum strength and spot divergence early. Tips: Can be
 volatile; complement with additional filters in fast-moving markets.
@@ -100,8 +102,8 @@ middle line. Usage: Signals potential overbought conditions and breakout zones.
 Tips: Confirm signals with other tools; prices may ride the band in strong trends.
 - boll_lb: Bollinger Lower Band: Typically 2 standard deviations below the
 middle line. Usage: Indicates potential oversold conditions. Tips: Use
-additional analysis to avoid false reversal signals.
-- atr: ATR: Averages true range to measure volatility. Usage: Set stop-loss
+additional analysis to avoid False reversal signals.
+- atr: ATR: Averages False range to measure volatility. Usage: Set stop-loss
 levels and adjust position sizes based on current market volatility. Tips:
 It's a reactive measure, so use it as part of a broader risk management strategy.
 
@@ -135,9 +137,7 @@ points in the report, organized and easy to read.
         "tools": [get_YF_data_tool, get_stock_stats_indicators_tool],
         "agent_topics": ["news_analyst"],
         "handoff": False,
-        "memory": [
-            "user_task",
-        ],
+        "memory": [],
         "state": "market_report",
     },
     {
@@ -152,6 +152,7 @@ of the current state of the world that is relevant for trading and macroeconomic
 Look at news from EODHD, and finnhub to be comprehensive. Do not simply state the
 trends are mixed, provide detailed and finegrained analysis and insights that may
 help traders make decisions.
+
 Make sure to append a Makrdown table at the end of the report to organize key
 points in the report, organized and easy to read.
         """,
@@ -160,9 +161,7 @@ points in the report, organized and easy to read.
         "tools": [],
         "agent_topics": ["social_media_analyst"],
         "handoff": False,
-        "memory": [
-            "user_task",
-        ],
+        "memory": [],
         "state": "news_report",
     },
     {
@@ -194,9 +193,7 @@ points in the report, organized and easy to read.
         "tools": [get_reddit_company_news_tool],
         "agent_topics": ["bear_researcher"],
         "handoff": False,
-        "memory": [
-            "user_task",
-        ],
+        "memory": [],
         "state": "sentiment_report",
     },
     {
@@ -244,7 +241,6 @@ you made in the past.
         "agent_topics": ["bull_researcher"],
         "handoff": False,
         "memory": [
-            "user_task",
             "debate",
             "market_report",
             "sentiment_report",
@@ -298,7 +294,6 @@ you made in the past.
         "agent_topics": ["research_manager"],
         "handoff": False,
         "memory": [
-            "user_task",
             "debate",
             "market_report",
             "sentiment_report",
@@ -345,7 +340,6 @@ Debate History:
         "agent_topics": ["trader"],
         "handoff": False,
         "memory": [
-            "user_task",
             "debate",
             "market_report",
             "sentiment_report",
@@ -381,7 +375,6 @@ and strategic decision.
         "agent_topics": ["aggresive_debator"],
         "handoff": False,
         "memory": [
-            "user_task",
             "investment_plan",
             "market_report",
             "sentiment_report",
@@ -435,7 +428,6 @@ conversationally as if you are speaking without any special formatting.
         "agent_topics": ["conservative_debator"],
         "handoff": False,
         "memory": [
-            "user_task",
             "risk_debate",
             "market_report",
             "sentiment_report",
@@ -487,7 +479,6 @@ without any special formatting.
         "agent_topics": ["risk_manager"],
         "handoff": False,
         "memory": [
-            "user_task",
             "risk_debate",
             "market_report",
             "sentiment_report",
@@ -543,7 +534,6 @@ better outcomes.
         "agent_topics": [],
         "handoff": False,
         "memory": [
-            "user_task",
             "risk_debate",
             "market_report",
             "sentiment_report",

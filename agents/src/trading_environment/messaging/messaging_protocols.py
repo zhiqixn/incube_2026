@@ -29,7 +29,7 @@ class AgentTask(BaseModel):
 
     reply_to_topic_type: str
     context: List[LLMMessage]
-    chat_history: dict[str, List[LLMMessage]] = {}
+    global_memory: dict[str, List] = {}
 
 
 class AgentResponse(BaseModel):
