@@ -311,11 +311,15 @@ class BaseAgent(RoutedAgent):
             memory = []
             for state, messages in self._global_memory.items():
                 if state in self._memory:
-                    memory.append(messages)
+                    memory.extend(messages)
 
             # analyse agent task
             llm_result = await self._model.create(
-                messages=[self._system_message] + memory + self._local_memory,
+                messages=[
+                    self._system_message,
+                    UserMessage(content=memory, source="User"),
+                    *self._local_memory,
+                ],
                 tools=available_tools,
                 cancellation_token=ctx.cancellation_token,
             )

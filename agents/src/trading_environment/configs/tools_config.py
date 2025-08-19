@@ -5,8 +5,8 @@ delegate_cfg = {
         "Call this tool to delegate tasks to other agents if there "
         "are any information outside of your expertise. "
         "Only delegate to these agents:\n\n{agents}\n\n"
-        "Field 'name' should be the one word name of agent delegating task. "
-        "E.g. IncidentCommander"
+        "Field 'name' MUST be the one word name of agent delegating task. "
+        "E.g. MarketAnalyst, Researcher, Trader, etc.\n"
         "Each DelegationTask data model should contain the fields "
         "'task', 'agent' and 'name'."
     )
