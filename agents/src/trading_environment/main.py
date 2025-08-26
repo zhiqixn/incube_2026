@@ -7,11 +7,13 @@ from agents.base_agent import BaseAgent
 from agents.user_agent import UserAgent
 from agents.microagent import MicroAgent
 from autogen_core import SingleThreadedAgentRuntime, TopicId
+from runtime.runtime import MemoryAgentRuntime
 from autogen_core.models import SystemMessage, UserMessage
 from configs import agents_config, runtime_config
 from messaging.messaging import setup_messaging_topics
 from messaging.messaging_protocols import UserTask
 from utils.logger import get_logger, setup_logger
+from configs.models_config import model_cfg
 
 setup_logger()
 logger = get_logger()
@@ -20,12 +22,13 @@ logger = get_logger()
 async def main():
     # instantiate trace provider
     logger.info("Instantiating trace provider")
-    trace_provider = tracer.get_phoenix_tracer_provider(project_name="TradingAgents")
+    trace_provider = tracer.set_phoenix_tracer_provider(project_name="TradingAgents")
     # instantiate runtime
     logger.info("Instantiating runtime")
-    runtime = SingleThreadedAgentRuntime(tracer_provider=trace_provider)
+    runtime = MemoryAgentRuntime(tracer_provider=trace_provider)
     # Instantiate all agents
     logger.info("Instantiating all agents")
+    logger.info("Model Endpoint: %s", model_cfg["model"])
     agents = {}
     for user in agents_config.user_cfgs:
         agents[user["name"]] = await UserAgent.register(

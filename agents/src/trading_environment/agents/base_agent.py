@@ -22,6 +22,7 @@ from autogen_core.models import (
 )
 from autogen_core.tools import FunctionTool, Tool
 from configs.tools_config import delegate_cfg, condenser_cfg
+from tools.condenser_tool import condenser_helper
 from messaging.messaging_protocols import AgentResponse, AgentTask, UserTask
 from pydantic import BaseModel
 from utils.logger import get_logger
@@ -59,7 +60,6 @@ class BaseAgent(RoutedAgent):
         self._broadcast_topic = broadcast_topic
         self._memory = memory
         self._state = state
-        self._global_memory: dict[str, List] = {}
         self._local_memory = []
         self._delegated_agents = []
         self._delegation_queue = []
@@ -83,8 +83,7 @@ class BaseAgent(RoutedAgent):
         """
         # designate message soure topic type
         self._sender_agent_topic_type = message.reply_to_topic_type
-
-        self._global_memory["user_task"] = []
+        self._runtime.set_memory("user_task", [])
 
         # set delegate tool schema
         if not self._delegate_tool_schema and (self._agent_topics and self._handoff):
@@ -103,7 +102,9 @@ class BaseAgent(RoutedAgent):
 
         if not message.broadcast:
             logger.info("Received user task")
-            self._global_memory["user_task"].append(message.context[0].content)
+            self._runtime.edit_memory("user_task", message.context[0].content)
+            print(self._runtime.get_memory("user_task"))
+
             available_tools = (
                 self._tool_schema + self._delegate_tool_schema
                 if self._delegate_tool_schema
@@ -113,11 +114,7 @@ class BaseAgent(RoutedAgent):
             current_span = get_current_span()
             current_span.set_attribute("available tools", str(available_tools))
 
-            memory = []
-            for state, messages in self._global_memory.items():
-                if state in self._memory:
-
-                    memory.extend(messages)
+            memory = self._runtime.get_all_agent_memory(self._memory)
 
             model_context = UserMessage(content=(memory), source="User")
 
@@ -130,6 +127,7 @@ class BaseAgent(RoutedAgent):
 
             # if the LLM returns a list of function calls
             # handle function calls
+
             if isinstance(llm_result.content, list) and all(
                 isinstance(m, FunctionCall) for m in llm_result.content
             ):
@@ -137,10 +135,11 @@ class BaseAgent(RoutedAgent):
                 self._delegate_tool_result = []
                 await self.handle_function_calls(llm_result, ctx)
 
-            else:
+            elif self._runtime._message_queue._unfinished_tasks < 2:
+                self._runtime.add_new_memory_state(llm_result, self._state)
                 await self.transfer_control(llm_result, ctx)
         else:
-            self._global_memory["user_task"].append(message.context[0].content)
+            self._runtime.edit_memory("user_task", message.context[0].content)
 
     @message_handler
     async def handle_agent_task(self, message: AgentTask, ctx: MessageContext) -> None:
@@ -164,7 +163,7 @@ class BaseAgent(RoutedAgent):
         logger.info("%s received task", self.id.type)
 
         # update agent memory
-        self._global_memory = message.global_memory
+        self._local_memory.append(message.context[0])
 
         # update topic type of agent to reply to
         self._sender_agent_topic_type = message.reply_to_topic_type
@@ -182,10 +181,7 @@ class BaseAgent(RoutedAgent):
         current_span.set_attribute("available tools", str(available_tools))
 
         # add context to llm based on relevant memory states
-        memory = []
-        for state, messages in self._global_memory.items():
-            if state in self._memory:
-                memory.extend(messages)
+        memory = self._runtime.get_all_agent_memory(self._memory)
 
         model_context = UserMessage(
             content=([message.context[0].content] + ["**MODEL CONTEXT**"] + memory),
@@ -206,7 +202,9 @@ class BaseAgent(RoutedAgent):
             await self.handle_function_calls(llm_result, ctx)
 
         else:
-            await self.transfer_control(llm_result, ctx)
+            self._runtime.add_new_memory_state(llm_result, self._state)
+            if self._runtime._message_queue._unfinished_tasks < 2:
+                await self.transfer_control(llm_result, ctx)
 
     @message_handler
     async def handle_agent_response(
@@ -275,7 +273,6 @@ class BaseAgent(RoutedAgent):
                             AgentTask(
                                 reply_to_topic_type=self.id.type,
                                 context=messages,
-                                global_memory=self._global_memory,
                             ),
                             topic_id=TopicId(agent, source=self.id.key),
                         )
@@ -308,10 +305,7 @@ class BaseAgent(RoutedAgent):
             current_span.set_attribute("available tools", str(available_tools))
 
             # add context to llm based on relevant memory states
-            memory = []
-            for state, messages in self._global_memory.items():
-                if state in self._memory:
-                    memory.extend(messages)
+            memory = self._runtime.get_all_agent_memory(self._memory)
 
             # analyse agent task
             llm_result = await self._model.create(
@@ -345,20 +339,13 @@ class BaseAgent(RoutedAgent):
                 )
 
                 # add assistant message output to memory
-                if self._state not in self._global_memory.keys():
-                    self._global_memory[self._state] = []
-                    logger.info("New memory state: %s", self._state)
-                self._global_memory[self._state].append(llm_result.content)
+                self._runtime.add_new_memory_state(llm_result, self._state)
 
     async def transfer_control(
         self, llm_result: CreateResult, ctx: MessageContext
     ) -> None:
-        # add assistant message output to memory
-        if self._state not in self._global_memory.keys():
-            self._global_memory[self._state] = []
-            logger.info("New memory state: %s", self._state)
-        self._global_memory[self._state].append(llm_result.content)
 
+        logger.info("Task transferred")
         if not self._handoff and self._agent_topics:
             transfer_targets_desc = await asyncio.gather(
                 *[
@@ -375,7 +362,7 @@ class BaseAgent(RoutedAgent):
                         "Provide a concise but detailed task assignment "
                         f"for the {transfer_target} agent "
                         "required to fufill the user task: ",
-                        self._global_memory["user_task"][0],
+                        self._runtime.get_memory("user_task")[0],
                         "Relay the original user task to the agent as well.",
                     ),
                     source="User",
@@ -395,7 +382,6 @@ class BaseAgent(RoutedAgent):
                                 content=transfer_response.content, source=self.id.type
                             )
                         ],
-                        global_memory=self._global_memory,
                     ),
                     topic_id=TopicId(transfer_target, source=self.id.key),
                 )
@@ -449,33 +435,17 @@ class BaseAgent(RoutedAgent):
                 try:
 
                     if call.name == "condenser":
+                        await self.condense_memory(call, ctx)
 
-                        # Skip the condenser tool for now
-                        continue
-                        # condensed_history = []
-                        # # condenser_model = model
-                        # for message in self._chat_history:
-
-                        #     if message.type == "FunctionExecutionResultMessage":
-
-                        #         message_arg = {"message": message.content[0].content}
-                        #         tool_result = await self._tools[call.name].run_json(
-                        #             message_arg, ctx.cancellation_token
-                        #         )
-                        #         message.content[0].content = tool_result
-
-                        #     condensed_history.append(message)
-                        # self._chat_history = condensed_history
-
-                        # self._tool_result.append(
-                        #     FunctionExecutionResult(
-                        #         name=call.name,
-                        #         content=self._tools[call.name].return_value_as_string(
-                        #             "Condenser executed"
-                        #         ),
-                        #         call_id=call.id,
-                        #     )
-                        # )
+                        self._tool_result.append(
+                            FunctionExecutionResult(
+                                name=call.name,
+                                content=self._tools[call.name].return_value_as_string(
+                                    "Condenser executed"
+                                ),
+                                call_id=call.id,
+                            )
+                        )
                     # save tool results
                     else:
                         tool_result = await self._tools[call.name].run_json(
@@ -585,7 +555,6 @@ class BaseAgent(RoutedAgent):
                             AgentTask(
                                 reply_to_topic_type=self.id.type,
                                 context=messages,
-                                global_memory=self._global_memory,
                             ),
                             topic_id=TopicId(agent, source=self.id.key),
                         )
@@ -604,16 +573,15 @@ class BaseAgent(RoutedAgent):
             )
 
             # add context to llm based on relevant memory states
-            memory = []
-            for state, messages in self._global_memory.items():
-                if state in self._memory:
-                    memory.append(messages)
+            memory = self._runtime.get_all_agent_memory(self._memory)
+
+            model_context = UserMessage(content=(memory), source="User")
 
             # analyse agent task
             llm_result = await self._model.create(
                 messages=[
                     self._system_message,
-                    *memory,
+                    model_context,
                     *self._local_memory,
                 ],
                 tools=available_tools,
@@ -631,7 +599,9 @@ class BaseAgent(RoutedAgent):
             # is required send it back to sender
             else:
                 self._tool_result = []
-                await self.transfer_control(llm_result, ctx)
+                self._runtime.add_new_memory_state(llm_result, self._state)
+                if self._runtime._message_queue._unfinished_tasks < 2:
+                    await self.transfer_control(llm_result, ctx)
 
     async def set_delegate_tools_schema(self) -> None:
         """
@@ -680,3 +650,21 @@ class BaseAgent(RoutedAgent):
         agent_description = metadata["description"]
         logger.info("Agent description for %s: %s", topic_id, agent_description)
         return f"{topic_id}: {agent_description}"
+
+    async def condense_memory(self, call, ctx) -> None:
+        for state in self._memory:
+            if self._runtime.check_memory_state(state):
+                messages = self._runtime.get_memory(state)
+                condensed_msgs = []
+                for msg in messages:
+                    tool_result = await condenser_helper(msg)
+                    condensed_msgs.append(tool_result)
+                self._runtime.set_memory(state, condensed_msgs)
+
+    async def call_model(self, message, available_tools, ctx):
+        result = await self._model.create(
+            messages=message,
+            tools=available_tools,
+            cancellation_token=ctx.cancellation_token,
+        )
+        return result

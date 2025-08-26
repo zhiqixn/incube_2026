@@ -29,7 +29,6 @@ class AgentTask(BaseModel):
 
     reply_to_topic_type: str
     context: List[LLMMessage]
-    global_memory: dict[str, List] = {}
 
 
 class AgentResponse(BaseModel):

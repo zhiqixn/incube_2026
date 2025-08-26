@@ -53,22 +53,26 @@ think_cfg = {
 condenser_cfg = {
     "description": (
         "Use this tool to trigger a context summarization process. "
-        "No input is required."
+        "Call this tool in this format: condenser()"
     ),
     "condenser_configs": (
-        "You are a summarizer agent.\n"
-        "Your task is to summarize the content of a tool execution result message.\n"
-        "- Do not omit any crucial information.\n"
-        "- Do not add introductions, conclusions, or commentary.\n"
-        "- Messages are tool execution outputs: identify whether the tool call was "
-        "successful based on message structure and content.\n"
-        "- If message starts with `[TOOL_CALLS]`, indicate that it was an unsuccessful "
-        "tool call.\n"
-        "- Infer which tool was used if possible.\n"
-        "- Eliminate formatting or repetition.\n"
-        "- Preserve key values, statuses, decisions, and errors.\n"
-        "Be precise, structured, and minimal.\n"
-        "Message:"
+        """You are maintaining the long term memory state for a multi-agent system. \
+Condensing the memory state is critical because it:
+1. Preserves essential context when conversation history grows too large
+2. Helps maintain continuity across multiple interactions
+
+You will be given:
+- A list of responses (actions taken by each agent)
+
+Your task is the summarize the content of the memory.
+- Exclude formatting, repetitions, introductions or conclusions
+
+Capture all relevant information, especially:
+- User requirements that were explicitly stated
+- Arguments given by the agent, data retrieved by the agent and its tool calls
+
+Content below:
+"""
     ),
 }
 
@@ -92,12 +96,11 @@ googlenews_tool_cfg = {
 
 stockstats_tool_cfg = {
     "description": (
-        "Call this tool to retrieve stock statistics indicators based on the i"
-        "ndicator descriptions. "
-        "Provide a stock ticker symbol, the indicator you want to analyze, "
-        "the current date in 'YYYY-MM-DD' format, and the number of days to look back."
-        "Tool follows this format: stock ticker, indicator, current date, "
-        "look back days."
+        "Call this tool to retrieve stock statistics indicators based on the "
+        "indicator descriptions. "
+        "Provide a stock ticker, an indicator, "
+        "the current date, and the number of days to look back. "
+        "Tool follows this format: symbol, indicator, curr_date, look_back_days"
     )
 }
 reddit_news_tool_cfg = {
