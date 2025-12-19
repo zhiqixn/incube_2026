@@ -23,10 +23,12 @@ user_cfgs = [
 autonomous_agents_cfgs = [
     {
         "name": "analyst_coordinator",
-        "description": """A coordinator responsible for passing \
-            information to the analysts""",
+        "description": """A coordinator of a trading multi-agent system \
+        responsible for disseminating \
+information to the analysts""",
         "system_message": """
-You are a coordinator tasked with sending information down to the analysts to \
+You are a coordinator of a trading multi-agent system tasked with \
+communicating information to the analysts to \
 complete the user task based on the analyst roles.
 
 Please pass the user task down to all the analysts.
@@ -63,12 +65,16 @@ company's fundamental information to inform traders. Make sure to include as muc
 detail as possible. Do not simply state the trends are mixed, provide detailed and \
 finegrained analysis and insights that may help traders make decisions. \
 
+Tools:
+think_tool: Use this tool to reason through the situation or new information.\
+      Log distinct thoughts, inferences, questions, or insights.
+
 Make sure to append a Markdown table at the end of the report to organize key points \
 in the report, organized and easy to read.
         """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [],
+        "tools": [think_tool],
         "agent_topics": ["bear_researcher"],
         "handoff": False,
         "broadcast_topic": "PLACEHOLDER_BROADCAST",
@@ -156,12 +162,16 @@ make decisions.
 
 Do not reply user with questions, only reply with tool calls or the final report.
 
+Tools:
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
+
 Make sure to append a Markdown table at the end of the report to organize key \
 points in the report, organized and easy to read.
         """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [get_YF_data_tool, get_stock_stats_indicators_tool],
+        "tools": [get_YF_data_tool, get_stock_stats_indicators_tool, think_tool],
         "agent_topics": ["bear_researcher"],
         "handoff": False,
         "memory": [],
@@ -180,12 +190,16 @@ Look at news from EODHD, and finnhub to be comprehensive. Do not simply state th
 trends are mixed, provide detailed and finegrained analysis and insights that may \
 help traders make decisions.
 
+Tools:
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
+
 Make sure to append a Markdown table at the end of the report to organize key \
 points in the report, organized and easy to read.
         """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [],
+        "tools": [think_tool],
         "agent_topics": ["bear_researcher"],
         "handoff": False,
         "memory": [],
@@ -212,12 +226,16 @@ Call get_reddit_company_news_tool to retrieve relevant news about companies \
 from reddit articles. Do not simply state the trends are mixed, provide \
 detailed and finegrained analysis and insights that may help traders make decisions.
 
+Tools:
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
+
 Make sure to append a Makrdown table at the end of the report to organize key \
 points in the report, organized and easy to read.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [get_reddit_company_news_tool],
+        "tools": [get_reddit_company_news_tool, think_tool],
         "agent_topics": ["bear_researcher"],
         "handoff": False,
         "memory": [],
@@ -256,8 +274,9 @@ Latest world affairs news: news_report
 Company fundamentals report: fundamentals_report
 
 Tools:
-
 condenser: Use this tool to summarize the model context if it gets too long.
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
 
 Use this information to deliver a compelling bear argument, refute the bull's claims, \
 and engage in a dynamic debate that demonstrates the risks and weaknesses of investing \
@@ -265,9 +284,7 @@ in the stock.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": ["bull_researcher"],
         "handoff": False,
         "memory": [
@@ -313,6 +330,8 @@ Company fundamentals report: fundamentals_report
 
 Tools:
 condenser: Use this tool to summarize the model context if it gets too long.
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
 
 Use this information to deliver a compelling bull argument, refute the bear's \
 concerns, and engage in a dynamic debate that demonstrates the strengths of the \
@@ -320,9 +339,7 @@ bull position.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": ["research_manager"],
         "handoff": False,
         "memory": [
@@ -362,14 +379,14 @@ your analysis conversationally, as if speaking naturally, without special format
 
 Tools:
 condenser: Use this tool to summarize the model context if it gets too long.
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
 
 Debate History: debate
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": ["trader"],
         "handoff": False,
         "memory": [
@@ -405,13 +422,12 @@ Leverage these insights to make an informed and strategic decision.
 
 Tools:
 condenser: Use this tool to summarize the model context if it gets too long.
-
+think_tool: Use this tool to reason through the situation or new information.\
+      Log distinct thoughts, inferences, questions, or insights.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": ["aggresive_debator"],
         "handoff": False,
         "memory": [
@@ -457,6 +473,8 @@ from the other viewpoints, do not halluncinate and just present your point.
 
 Tools:
 condenser: Use this tool to summarize the model context if it gets too long.
+think_tool: Use this tool to reason through the situation or new information.\
+      Log distinct thoughts, inferences, questions, or insights.
 
 Engage actively by addressing any specific concerns raised, refuting the weaknesses \
 in their logic, and asserting the benefits of risk-taking to outpace market norms. \
@@ -466,9 +484,7 @@ conversationally as if you are speaking without any special formatting.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": ["conservative_debator"],
         "handoff": False,
         "memory": [
@@ -514,6 +530,8 @@ viewpoints, do not halluncinate and just present your point.
 
 Tools:
 condenser: Use this tool to summarize the model context if it gets too long.
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
 
 Engage by questioning their optimism and emphasizing the potential downsides they \
 may have overlooked. Address each of their counterpoints to showcase why a \
@@ -524,9 +542,7 @@ without any special formatting.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": ["risk_manager"],
         "handoff": False,
         "memory": [
@@ -579,6 +595,8 @@ fundamentals_report
 
 Tools:
 condenser: Use this tool to summarize the model context if it gets too long.
+think_tool: Use this tool to reason through the situation or new information. \
+    Log distinct thoughts, inferences, questions, or insights.
 
 Focus on actionable insights and continuous improvement. \
 Critically evaluate all perspectives, and ensure each decision advances \
@@ -586,9 +604,7 @@ better outcomes.
 """,
         "model": model,
         "delegate_tools": [delegate_tasks],
-        "tools": [
-            condenser,
-        ],
+        "tools": [condenser, think_tool],
         "agent_topics": [],
         "handoff": False,
         "memory": [

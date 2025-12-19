@@ -18,3 +18,5 @@ fastapi[standard]==0.115.12
 litellm==1.67.4.post1
 python-socketio==5.13.0
 stockstats==0.5.0
+langchain
+langchain_openai
