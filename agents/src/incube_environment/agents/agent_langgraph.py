@@ -32,21 +32,28 @@ validator_llm = llm.with_structured_output(ValidationState)
 def planner(state: State):
     """Planner that generates a plan for the report"""
 
-    # print(state["instructions"])
+    logger.info("Instantiating Planner...")
+
+    if state.get("output"):
+        msg_content = f"{state['instructions']} \n\nHere is the validator feedback:\n \
+            {state['output']}\n\nPlease revise the plan to address the feedback \
+                and fix the issues identified."
+    else:
+        msg_content = state["instructions"]
     report_sections = llm.invoke(
         [
             SystemMessage(content=PLANNER_AGENT_PROMPT),
-            HumanMessage(content=state["instructions"]),
+            HumanMessage(content=msg_content),
         ]
     )
-
+    logger.info("Plan generated:\n%s", report_sections.content)
     return {"plan": report_sections.content}
 
 
 def generator(state: State):
 
     logger.info("Instantiating Generator...")
-    logger.info("Plan: %s", state["plan"])
+    # logger.info("Plan: %s", state["plan"])
 
     completed_summary = generator_llm.invoke(
         [
@@ -54,7 +61,7 @@ def generator(state: State):
             HumanMessage(content=state["plan"]),
         ]
     )
-
+    logger.info("Output generated:\n%s", completed_summary["output"])
     return {
         "output": completed_summary["output"],
         "explanation": completed_summary["explanation"],
@@ -70,4 +77,5 @@ def validator(state: State):
             HumanMessage(content=state["output"] + state["explanation"]),
         ]
     )
+    logger.info("Validation result:\n%s", validation["valid"])
     return {"valid": validation["valid"], "feedback": validation["feedback"]}

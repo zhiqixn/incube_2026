@@ -26,12 +26,13 @@ if __name__ == "__main__":
     # Add edges to connect nodes
 
     mission_builder.add_edge(START, "planner")
+
     mission_builder.add_edge("planner", "generator")
     mission_builder.add_edge("generator", "validator")
     # mission_builder.add_edge("validator", END)
 
     mission_builder.add_conditional_edges(
-        "validator", should_continue, {END: END, "generator": "generator"}
+        "validator", should_continue, {END: END, "planner": "planner"}
     )
 
     # Compile the workflow
