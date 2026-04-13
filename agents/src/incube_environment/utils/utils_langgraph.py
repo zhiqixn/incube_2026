@@ -4,10 +4,11 @@ from pydantic import BaseModel, Field
 import operator
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import BaseMessage
-from tools.tool_langgraph import get_reddit_company_news
+
+# from tools.tool_langgraph import get_reddit_company_news
 
 
-tools = [get_reddit_company_news]
+# tools = [get_reddit_company_news]
 # tool_node = ToolNode(tools)
 
 

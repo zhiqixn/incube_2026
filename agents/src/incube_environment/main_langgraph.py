@@ -1,6 +1,6 @@
 from configs.runtime_config import prompt
 from langgraph.graph import StateGraph, START, END
-from langchain_core.messages import HumanMessage
+from tools.tool_langgraph import should_continue
 from IPython.display import Image, display
 from agents.agent_langgraph import (
     planner,
@@ -28,7 +28,11 @@ if __name__ == "__main__":
     mission_builder.add_edge(START, "planner")
     mission_builder.add_edge("planner", "generator")
     mission_builder.add_edge("generator", "validator")
-    mission_builder.add_edge("validator", END)
+    # mission_builder.add_edge("validator", END)
+
+    mission_builder.add_conditional_edges(
+        "validator", should_continue, {END: END, "generator": "generator"}
+    )
 
     # Compile the workflow
     planner_worker = mission_builder.compile()
@@ -40,10 +44,6 @@ if __name__ == "__main__":
     state = planner_worker.invoke(
         {
             "instructions": prompt,
-            # "section": {
-            #     "name": "planner",
-            #     "task": prompt,
-            # },
         }
     )
 

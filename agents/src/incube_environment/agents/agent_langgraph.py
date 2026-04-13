@@ -1,6 +1,3 @@
-from langchain.tools import tool
-from langchain.agents import create_agent
-from langgraph.graph import StateGraph, START, END
 from tools.tool_langgraph import get_reddit_company_news, get_YF_data_tool
 from models.model_langgraph import llm
 from configs.agents_config import (
@@ -8,19 +5,14 @@ from configs.agents_config import (
     GENERATION_AGENT_PROMPT,
     VALIDATION_AGENT_PROMPT,
 )
-from langgraph.types import Send
 from typing import Literal
 from utils.utils_langgraph import (
-    WorkerState,
     State,
-    Sections,
-    Section,
-    Route,
     Output,
     ValidationState,
 )
 
-from langchain.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain.messages import HumanMessage, SystemMessage
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -56,7 +48,6 @@ def generator(state: State):
     logger.info("Instantiating Generator...")
     logger.info("Plan: %s", state["plan"])
 
-    # TODO Needs to be structured output
     completed_summary = generator_llm.invoke(
         [
             SystemMessage(content=GENERATION_AGENT_PROMPT),
@@ -72,7 +63,7 @@ def generator(state: State):
 
 def validator(state: State):
 
-    # TODO: Needs to be structured output
+    logger.info("Instantiating Validator...")
     validation = validator_llm.invoke(
         [
             SystemMessage(content=VALIDATION_AGENT_PROMPT),

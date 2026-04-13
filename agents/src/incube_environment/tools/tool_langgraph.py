@@ -1,5 +1,6 @@
 from langchain.tools import tool
-
+from langgraph.graph import END
+from utils.utils_langgraph import State
 import os
 import json
 import re
@@ -33,6 +34,13 @@ ticker_to_company = {
 
 # @tool
 # TODO: Create DB calling memory tool for planner agent
+
+
+def should_continue(state: State):
+    # This assumes your validator node sets a 'valid' boolean in the state
+    if state.get("valid"):
+        return END
+    return "generator"
 
 
 @tool
