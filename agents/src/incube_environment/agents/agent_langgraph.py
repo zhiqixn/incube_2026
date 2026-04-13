@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from tools.tool_langgraph import get_reddit_company_news, get_YF_data_tool
 from models.model_langgraph import llm
 from configs.agents_config import (
@@ -13,17 +15,56 @@ from utils.utils_langgraph import (
 )
 
 from langchain.messages import HumanMessage, SystemMessage
+from deepagents import create_deep_agent
+from deepagents.backends.filesystem import FilesystemBackend
+from langgraph.checkpoint.memory import MemorySaver
 from utils.logger import get_logger
 
 logger = get_logger()
 
-# Testing
-tools = [get_reddit_company_news, get_YF_data_tool]
-# tools_by_name = {tool.name: tool for tool in tools}
-social_media_llm = llm.bind_tools([get_reddit_company_news])
-market_llm = llm.bind_tools([get_YF_data_tool])
+# ---------------------------------------------------------------------------
+# Project root (used by FilesystemBackend to resolve skill paths)
+# ---------------------------------------------------------------------------
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 
-# Augment the LLM with schema for structured output
+# ---------------------------------------------------------------------------
+# Deep agent definitions
+# Each agent is created via create_deep_agent with its skills and tools.
+# The existing LLM and prompts are reused; skills augment the prompts
+# with AgentSkills-compliant SKILL.md content via progressive disclosure.
+# ---------------------------------------------------------------------------
+
+planner_agent = create_deep_agent(
+    model=llm,
+    tools=[],
+    system_prompt=PLANNER_AGENT_PROMPT,
+    skills=["skills/planner-skill/"],
+    backend=FilesystemBackend(root_dir=PROJECT_ROOT),
+    checkpointer=MemorySaver(),
+)
+logger.info("Planner agent created with FilesystemBackend, root_dir=%s", PROJECT_ROOT)
+logger.debug("Skills paths: skills/planner-skill/")
+
+generator_agent = llm
+
+# generator_agent = create_deep_agent(
+#     model=llm,
+#     tools=[get_reddit_company_news, get_YF_data_tool],
+#     system_prompt=GENERATION_AGENT_PROMPT,
+#     skills=[],
+# )
+
+validator_agent = llm
+
+# validator_agent = create_deep_agent(
+#     model=llm,
+#     tools=[],
+#     system_prompt=VALIDATION_AGENT_PROMPT,
+#     skills=[],
+# )
+
+# Augment the LLM with schema for structured output (retained for
+# generator and validator nodes that use structured output)
 generator_llm = llm.with_structured_output(Output)
 validator_llm = llm.with_structured_output(ValidationState)
 
@@ -33,27 +74,24 @@ def planner(state: State):
     """Planner that generates a plan for the report"""
 
     logger.info("Instantiating Planner...")
+    logger.debug("Planner input instructions: %s", state["instructions"])
 
-    if state.get("output"):
-        msg_content = f"{state['instructions']} \n\nHere is the validator feedback:\n \
-            {state['output']}\n\nPlease revise the plan to address the feedback \
-                and fix the issues identified."
-    else:
-        msg_content = state["instructions"]
-    report_sections = llm.invoke(
-        [
-            SystemMessage(content=PLANNER_AGENT_PROMPT),
-            HumanMessage(content=msg_content),
-        ]
+    result = planner_agent.invoke(
+        {
+            "messages": [
+                HumanMessage(content=state["instructions"]),
+            ]
+        },
+        config={"configurable": {"thread_id": "planner"}},
     )
-    logger.info("Plan generated:\n%s", report_sections.content)
-    return {"plan": report_sections.content}
+    logger.info("Plan generated:\n%s", result["messages"][-1].content)
+    return {"plan": result["messages"][-1].content}
 
 
 def generator(state: State):
 
     logger.info("Instantiating Generator...")
-    # logger.info("Plan: %s", state["plan"])
+    logger.info("Plan: %s", state["plan"])
 
     completed_summary = generator_llm.invoke(
         [
@@ -70,7 +108,7 @@ def generator(state: State):
 
 def validator(state: State):
 
-    logger.info("Instantiating Validator...")
+    # logger.info("Instantiating Validator...")
     validation = validator_llm.invoke(
         [
             SystemMessage(content=VALIDATION_AGENT_PROMPT),

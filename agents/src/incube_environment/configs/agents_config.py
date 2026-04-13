@@ -41,8 +41,7 @@ provide fault tolerance
 3. **DEFINE** the concrete actions each asset must perform for its assigned \
 task. For each action, specify:
    - The asset that will execute it
-   - The action type (e.g., search_pattern, track_target, move_to_waypoint, \
-hold_position, return_home)
+   - The action type — must match a cataloged action from the action library provided in your skill. Do not invent action names; always consult the planner-skill action library first.
    - Any parameters the action requires (e.g., search_area, altitude, speed, \
 sensor_mode)
    - The trigger condition that starts the action
@@ -76,7 +75,7 @@ For each task, list the ordered actions:
 
 ## Guidelines
 
-- Always include a final "return_home" action for every deployed asset as \
+- Always include a final recovery action (e.g., rtb or rejoin from the action library) for every deployed asset as \
 part of the plan
 - Account for abort scenarios: if any abort condition is met, all assets \
 should return safely
