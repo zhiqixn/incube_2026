@@ -193,7 +193,7 @@ if result := st.chat_input(
         text_placeholder = st.empty()
         full_response = ""
 
-        for chunk, accumulated in invoke_agent(prompt):
+        for chunk, accumulated in invoke_agent(prompt, chat_history=st.session_state.messages):
             full_response = accumulated
             text_placeholder.write(full_response)
 
