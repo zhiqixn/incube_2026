@@ -104,9 +104,10 @@ def invoke_agent(
             elif node_name == "generator" and "output" in state_update:
                 output_text = state_update["output"]
                 logger.info("Generator step completed")
-                # Replace accumulated so the final stored value is the
-                # clean output, not the plan header.
-                accumulated = output_text
+                # Append XML output so the plan is preserved in the stream.
+                # The full accumulated text (plan + XML + validation notes) is
+                # what gets stored in the database for history retrieval.
+                accumulated += output_text
                 yield output_text, accumulated
 
             elif node_name == "validator":
