@@ -16,9 +16,9 @@ class MinIOClient:
             region: str = None):
 
         self.client = Minio(
-            endpoint or os.getenv("MINIO_ENDPOINT", "localhost:9000"),
-            access_key=access_key or os.getenv("MINIO_ACCESS_KEY"),
-            secret_key=secret_key or os.getenv("MINIO_SECRET_KEY"),
+            endpoint or os.getenv("S3_ENDPOINT", "localhost:9000"),
+            access_key=access_key or os.getenv("S3_ACCESS_KEY"),
+            secret_key=secret_key or os.getenv("S3_SECRET_KEY"),
             secure=secure,
             region=region
             )

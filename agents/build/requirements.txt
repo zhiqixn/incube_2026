@@ -21,3 +21,4 @@ stockstats==0.5.0
 langchain
 langchain_openai
 deepagents
+minio
