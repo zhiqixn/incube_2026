@@ -1,5 +1,7 @@
 # project specific
 phoenix/
+.roo/
+docs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
