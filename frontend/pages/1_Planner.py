@@ -88,6 +88,61 @@ def save_message(conversation_id, user_msg, bot_msg):
 
 
 # =========================
+# TEMPLATES
+# =========================
+
+TEMPLATES = [
+    {
+        "title": "AREA SURVEILLANCE",
+        "icon": "◈",
+        "summary": "Systematic ISR coverage of the full AO using all available UAV assets with overlapping fields of view.",
+        "prompt": (
+            "Using the asset inventory and area of operations defined in the attached "
+            "mission_spec_edited.yaml, plan an Intelligence, Surveillance and Reconnaissance "
+            "(ISR) mission.\n\n"
+            "Objective: Achieve comprehensive coverage of the designated AO using all available "
+            "UAV assets. Allocate assets to cover all sectors with overlapping fields of view "
+            "and minimise loiter gaps. UGVs / USVs hold at staging unless tasked for "
+            "ground-truth confirmation.\n\n"
+            "Constraints: Maintain minimum safe separation between air assets. "
+            "All assets must be recoverable on task completion."
+        ),
+    },
+    {
+        "title": "SEARCH & SECURE",
+        "icon": "◎",
+        "summary": "Multi-domain search for the designated target, positive ID, then UGV/USV perimeter hold.",
+        "prompt": (
+            "Using the asset inventory and area of operations defined in the attached "
+            "mission_spec_edited.yaml, plan a Search and Secure mission.\n\n"
+            "Objective: Deploy multi-domain assets to systematically search the AO for the "
+            "designated target, confirm identification, and establish a secure perimeter. "
+            "UAVs provide aerial search and overwatch; UGVs / USVs close for ground-level "
+            "confirmation and perimeter hold.\n\n"
+            "Constraints: ROE requires positive identification before any UGV / USV advance. "
+            "All assets RTB on task completion or on low-battery threshold."
+        ),
+    },
+    {
+        "title": "COORDINATED STRIKE",
+        "icon": "◆",
+        "summary": "Synchronised UAV/UGV/USV strike package with terminal guidance, payload delivery and BDA.",
+        "prompt": (
+            "Using the asset inventory and area of operations defined in the attached "
+            "mission_spec_edited.yaml, plan a coordinated strike mission.\n\n"
+            "Objective: Synchronise UAV, UGV, and USV assets to locate, designate, and "
+            "neutralise the priority target within the AO. UAVs provide terminal guidance "
+            "and battle damage assessment; UGVs / USVs execute the ground approach and "
+            "payload delivery.\n\n"
+            "Constraints: Strike package must achieve simultaneous arrival within the "
+            "engagement window. Abort criteria: any asset loss or comms blackout exceeding "
+            "30 seconds triggers immediate RTB for all remaining assets."
+        ),
+    },
+]
+
+
+# =========================
 # HELPERS
 # =========================
 
@@ -324,10 +379,16 @@ defaults = {
     "current_validation": "",
     "agent_states": {"PLANNER": "idle", "GENERATOR": "idle", "VALIDATOR": "idle"},
     "executing": False,
+    "pending_brief": "",          # template text waiting to be injected into the textarea
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# Inject template text into the textarea widget key BEFORE the widget renders
+if st.session_state.pending_brief:
+    st.session_state.mission_input_box = st.session_state.pending_brief
+    st.session_state.pending_brief = ""
 
 # =========================
 # SIDEBAR — MISSION ARCHIVE
@@ -374,6 +435,29 @@ st.divider()
 # ── Mission Brief Input ──────────────────────────────────────────────────────
 with st.container(border=True):
     st.markdown("#### MISSION BRIEF")
+
+    # ── Template selector ────────────────────────────────────────────────────
+    st.caption("TEMPLATES — select to pre-fill brief (upload mission_spec_edited.yaml before executing)")
+    t1, t2, t3 = st.columns(3)
+    for col, tpl, idx in zip([t1, t2, t3], TEMPLATES, range(3)):
+        with col:
+            with st.container(border=True):
+                st.markdown(
+                    f"<span style='font-family:monospace;font-size:0.75rem;"
+                    f"letter-spacing:0.08em;color:#58a6ff;'>"
+                    f"{tpl['icon']} {tpl['title']}</span>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f"<p style='font-size:0.78rem;color:#8b949e;margin:4px 0 8px 0;"
+                    f"line-height:1.4;'>{tpl['summary']}</p>",
+                    unsafe_allow_html=True,
+                )
+                if st.button("USE TEMPLATE", key=f"tpl_{idx}", use_container_width=True):
+                    st.session_state.pending_brief = tpl["prompt"]
+                    st.rerun()
+
+    st.divider()
     brief_col, upload_col = st.columns([3, 1])
 
     with brief_col:
