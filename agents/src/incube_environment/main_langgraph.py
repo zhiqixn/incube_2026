@@ -32,7 +32,11 @@ _builder.add_conditional_edges(
 planner_worker = _builder.compile()
 
 
-def invoke_agent(instructions: str, chat_history: list | None = None):
+def invoke_agent(
+    instructions: str,
+    chat_history: list | None = None,
+    uploaded_files: list | None = None,
+):
     """Run the multi-agent LangGraph workflow and stream results.
 
     Iterates over node-level updates emitted by the compiled graph and
@@ -42,11 +46,16 @@ def invoke_agent(instructions: str, chat_history: list | None = None):
     Parameters
     ----------
     instructions:
-        The user's request / mission specification.
+        The user's request / mission specification text.
     chat_history:
         Prior conversation turns as a list of ``(user_msg, bot_msg)`` tuples.
         When provided, the planner receives the full conversation context so
         follow-up queries can reference earlier missions or clarifications.
+    uploaded_files:
+        Files attached to the current message, as a list of dicts produced
+        by the frontend.  Text/YAML/JSON files are inlined into the planner
+        message; image files are embedded as base64 ``image_url`` blocks.
+        When present, these override the default mission spec.
 
     Yields
     ------
@@ -60,14 +69,16 @@ def invoke_agent(instructions: str, chat_history: list | None = None):
     accumulated = ""
 
     logger.info(
-        "invoke_agent called — history turns=%d, instructions: %.80s",
+        "invoke_agent called — history turns=%d, uploaded_files=%d, instructions: %.80s",
         len(chat_history) if chat_history else 0,
+        len(uploaded_files) if uploaded_files else 0,
         instructions,
     )
 
     for event in planner_worker.stream({
         "instructions": instructions,
         "chat_history": chat_history or [],
+        "uploaded_files": uploaded_files or [],
     }):
         for node_name, state_update in event.items():
 

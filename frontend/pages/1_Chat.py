@@ -193,7 +193,11 @@ if result := st.chat_input(
         text_placeholder = st.empty()
         full_response = ""
 
-        for chunk, accumulated in invoke_agent(prompt, chat_history=st.session_state.messages):
+        for chunk, accumulated in invoke_agent(
+            prompt,
+            chat_history=st.session_state.messages,
+            uploaded_files=uploaded_files,
+        ):
             full_response = accumulated
             text_placeholder.write(full_response)
 

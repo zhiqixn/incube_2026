@@ -75,6 +75,29 @@ For each task, list the ordered actions:
 - Action sequence: [asset_id] -> [action_type] (parameters) triggered by \
 [condition], completes when [condition]
 
+## Uploaded Files
+
+When the user provides uploaded files alongside their instructions, treat \
+them as follows:
+
+- **Text / YAML / JSON files**: treat these as the authoritative mission \
+specification. Extract mission ID, objective, success criteria, abort \
+conditions, fleet composition, environment parameters, and task graph \
+directly from the file content rather than inferring defaults. Cite the \
+source filename explicitly when referencing parameters (e.g., \
+"per mission_spec.yaml — fleet includes uav_1 as scout").
+- **Image files**: treat these as supporting operational context — e.g., \
+area-of-operations maps, sensor imagery, terrain diagrams, or satellite \
+views. Reference each image file by name in the relevant section of your \
+plan (e.g., "refer to area_map.png for sector boundaries") and extract \
+any observable information (landmarks, terrain features, zone boundaries) \
+that informs task decomposition or asset allocation.
+- When both text specs and images are provided, the text spec takes \
+precedence for numerical parameters and asset lists; images supplement \
+with spatial and environmental context.
+- If no files are uploaded, fall back to the mission specification \
+embedded in the user's instructions.
+
 ## Guidelines
 
 - Always include a final recovery action (e.g., rtb or rejoin from \

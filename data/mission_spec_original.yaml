@@ -1,0 +1,147 @@
+mission:
+  id: als_multi_domain_search_track_encircle_v1
+  objective: >
+    Detect, track, and contain a moving target across a coastal-littoral zone
+    using coordinated air, land, and sea assets.
+  success_criteria:
+    - target_detected
+    - track_stable_for_30s
+    - encirclement_established
+  abort_conditions:
+    - operator_abort
+    - fleet_battery_below_threshold
+    - target_lost_for_60s
+
+# --------------------------------------------------------
+# FLEET
+# --------------------------------------------------------
+fleet:
+  # AIR
+  - { id: uav_1, domain: air, platform_type: quadrotor, role: scout, group: air_alpha }
+  - { id: uav_2, domain: air, platform_type: quadrotor, role: scout, group: air_alpha }
+  - { id: uav_3, domain: air, platform_type: quadrotor, role: tracker, group: air_beta }
+  - { id: uav_4, domain: air, platform_type: fixed_wing, role: overwatch, group: air_beta }
+  - { id: uav_5, domain: air, platform_type: quadrotor, role: interceptor, group: air_gamma }
+
+  # LAND
+  - { id: ugv_1, domain: land, platform_type: ugv, role: scout, group: land_alpha }
+  - { id: ugv_2, domain: land, platform_type: ugv, role: interceptor, group: land_beta }
+
+  # SEA
+  - { id: usv_1, domain: sea, platform_type: usv, role: tracker, group: sea_alpha }
+  - { id: usv_2, domain: sea, platform_type: usv, role: interceptor, group: sea_beta }
+
+# --------------------------------------------------------
+# ENVIRONMENT
+# --------------------------------------------------------
+environment:
+  type: littoral_coastal
+  time_of_day: night
+  visibility: degraded
+  weather: light_rain
+  sea_state: moderate
+
+  geofence:
+    polygon_id: sector_alpha_boundary
+
+  restricted_zones:
+    - harbor_lane
+    - marina_exclusion
+
+# --------------------------------------------------------
+# TASK GRAPH
+# --------------------------------------------------------
+tasks:
+  - id: ingress
+    type: go_to_area
+    assigned_to: [uav_1, uav_2, ugv_1, usv_1]
+    params:
+      area_id: sector_alpha
+
+  - id: wide_search
+    type: search
+    assigned_to: [uav_1, uav_2, ugv_1]
+    params:
+      area_id: sector_alpha
+    success_when:
+      - target_detected
+
+  - id: confirm_overwatch
+    type: patrol
+    assigned_to: [uav_4]
+    params:
+      area_id: sector_alpha
+      pattern: racetrack
+
+  - id: track_primary
+    type: track
+    assigned_to: [usv_1]   # keep single for current planner
+    success_when:
+      - track_stable
+
+  - id: handoff_to_interceptors
+    type: handoff_target
+    assigned_to: [usv_1]
+
+  - id: intercept_and_contain
+    type: encircle
+    assigned_to: [uav_5, ugv_2, usv_2]
+    params:
+      radius_m: 18.0
+      standoff_m: 10.0
+
+  - id: return_home
+    type: return_home
+    assigned_to:
+      - uav_1
+      - uav_2
+      - uav_3
+      - uav_4
+      - uav_5
+      - ugv_1
+      - ugv_2
+      - usv_1
+      - usv_2
+
+# --------------------------------------------------------
+# CONSTRAINTS
+# --------------------------------------------------------
+constraints:
+  hard:
+    min_battery_abort_pct: 20.0
+    geofence_policy: must_stay_inside
+    collision_avoidance: required
+    min_inter_vehicle_separation_m: 6.0
+
+  soft:
+    priority: safety
+    comms_preference: maintain_mesh
+    stealth_preference: low
+
+# --------------------------------------------------------
+# TUNING
+# --------------------------------------------------------
+tuning:
+  tick_hz: 10
+  retry_count: 2
+
+  timeout_s:
+    go_to_area: 60
+    search: 150
+    patrol: 120
+    track: 90
+    handoff_target: 30
+    encircle: 60
+
+# --------------------------------------------------------
+# PREFERENCES
+# --------------------------------------------------------
+preferences:
+  search_style: coverage
+  formation:
+    air: loose_swarm
+    land: corridor
+    sea: line_abreast
+  coordination:
+    handoff_mode: producer_consumer
+    encircle_strategy: multi_domain_closure

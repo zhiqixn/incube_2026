@@ -30,7 +30,7 @@ fleet:
   # SEA
   - { id: usv_1, domain: sea, platform_type: usv, role: tracker, group: sea_alpha }
   - { id: usv_2, domain: sea, platform_type: usv, role: interceptor, group: sea_beta }
-
+  - { id: usv_3, domain: sea, platform_type: usv, role: interceptor, group: sea_charile }
 # --------------------------------------------------------
 # ENVIRONMENT
 # --------------------------------------------------------
@@ -54,7 +54,7 @@ environment:
 tasks:
   - id: ingress
     type: go_to_area
-    assigned_to: [uav_1, uav_2, ugv_1, usv_1]
+    assigned_to: [uav_1, uav_2, ugv_1, usv_1, usv_3]
     params:
       area_id: sector_alpha
 
@@ -75,7 +75,7 @@ tasks:
 
   - id: track_primary
     type: track
-    assigned_to: [usv_1]   # keep single for current planner
+    assigned_to: [usv_1, usv_3]   # keep single for current planner
     success_when:
       - track_stable
 
@@ -85,7 +85,7 @@ tasks:
 
   - id: intercept_and_contain
     type: encircle
-    assigned_to: [uav_5, ugv_2, usv_2]
+    assigned_to: [uav_5, ugv_2, usv_2, usv_3]
     params:
       radius_m: 18.0
       standoff_m: 10.0
@@ -102,6 +102,7 @@ tasks:
       - ugv_2
       - usv_1
       - usv_2
+      - usv_3
 
 # --------------------------------------------------------
 # CONSTRAINTS

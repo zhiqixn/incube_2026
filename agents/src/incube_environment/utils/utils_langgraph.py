@@ -37,6 +37,7 @@ class State(TypedDict):
     valid: bool
     feedback: str
     chat_history: list  # list of (user_msg, bot_msg) tuples from prior turns
+    uploaded_files: list  # list of file dicts: {name, type, content} or {name, type, media_type, data}
     # sections: list[Section]
     # completed_sections: Annotated[list, operator.add]
     # final_report: str
