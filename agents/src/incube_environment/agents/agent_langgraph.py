@@ -176,7 +176,7 @@ def generator(state: State):
     except Exception as exc:
         logger.warning("Failed to render behaviour-tree PNG: %s", exc)
 
-    return {"output": generated_response.content, "image_url": image_url}
+    return {"output": generated_response.content, "resource_url": image_url}
 
 
 def validator(state: State):
