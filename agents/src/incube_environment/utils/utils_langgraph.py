@@ -51,6 +51,11 @@ class ValidationState(TypedDict):
     feedback: str
 
 
+class PlannerResponse(TypedDict):
+    plan: str
+    explanation: str
+
+
 class WorkerState(TypedDict):
     section: Annotated[Section, operator.add]
     completed_sections: Annotated[list, operator.add]

@@ -51,29 +51,39 @@ sensor_mode)
 
 ## Output Format
 
-Produce your plan as plain text with the following three clearly labeled \
-sections:
+You MUST respond with a JSON object matching this exact schema:
 
-### TASKS
-Numbered list of decomposed tasks. For each task, state:
-- Task ID and name
-- Description of what it accomplishes
-- Dependencies (list of task IDs that must complete first, or "none" if \
-this is a starting task)
-- Parallel group (tasks sharing the same group ID can run concurrently)
+```json
+{
+  "plan": "The full mission plan as a structured text containing TASKS, \
+ALLOCATION, and ACTIONS sections as described below",
+  "explanation": "A concise explanation of the key planning decisions, \
+trade-offs, and assumptions made while constructing the plan"
+}
+```
 
-### ALLOCATION
-For each task, state:
-- Task ID
-- Assigned asset(s) with their IDs
-- Rationale for the allocation (capability match, endurance consideration, \
-etc.)
-
-### ACTIONS
-For each task, list the ordered actions:
-- Task ID
-- Action sequence: [asset_id] -> [action_type] (parameters) triggered by \
-[condition], completes when [condition]
+- The `plan` field must contain the mission plan with the following three \
+clearly labeled sections:
+  - TASKS: Numbered list of decomposed tasks. For each task, state:
+    - Task ID and name
+    - Description of what it accomplishes
+    - Dependencies (list of task IDs that must complete first, or "none" \
+if this is a starting task)
+    - Parallel group (tasks sharing the same group ID can run concurrently)
+  - ALLOCATION: For each task, state:
+    - Task ID
+    - Assigned asset(s) with their IDs
+    - Rationale for the allocation (capability match, endurance \
+consideration, etc.)
+  - ACTIONS: For each task, list the ordered actions:
+    - Task ID
+    - Action sequence: [asset_id] -> [action_type] (parameters) triggered \
+by [condition], completes when [condition]
+- The `explanation` field must be a string summarizing the rationale behind \
+the plan, including key trade-offs, assumptions, and any constraints that \
+influenced asset allocation or task ordering.
+- Do NOT output anything outside the JSON object. Do NOT wrap the JSON in \
+markdown code fences.
 
 ## Guidelines
 
@@ -111,7 +121,6 @@ below.
 
 ## Reference XML Structure
 
-```xml
 <BehaviorTree ID="MainMission">
   <ReactiveFallback name="mission_root">
     <Sequence name="mission_sequence">
@@ -143,7 +152,7 @@ geofence_id="{{geofence_id}}"/>
 restricted_zone_list="{{restricted_zone_list}}"/>
   </Sequence>
 </BehaviorTree>
-```
+
 """
 
 

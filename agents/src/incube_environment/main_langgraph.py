@@ -45,7 +45,9 @@ if __name__ == "__main__":
     state = planner_worker.invoke(
         {
             "instructions": prompt,
-        }
+        },
+        # tracing thread id
+        config={"configurable": {"thread_id": 42}},
     )
 
     # from IPython.display import Markdown

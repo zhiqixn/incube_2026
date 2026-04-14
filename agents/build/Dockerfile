@@ -5,8 +5,14 @@ ENV PYTHONDONTWRITEBYTECODE 1
 # Turns off buffering for easier container logging
 ENV PYTHONUNBUFFERED 1
 
-RUN apt update && apt upgrade -y 
+RUN apt update && apt upgrade -y
 RUN apt-get update && apt-get upgrade -y
+
+# Install Graphviz system package (provides the 'dot' binary needed to render
+# behaviour-tree images).  The Python 'graphviz' package in requirements.txt is
+# only a thin wrapper and does NOT include the dot executable.
+RUN apt-get install -y --no-install-recommends graphviz && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
 

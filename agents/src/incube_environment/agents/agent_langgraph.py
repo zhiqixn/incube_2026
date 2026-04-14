@@ -1,7 +1,11 @@
+import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from tools.tool_langgraph import get_reddit_company_news, get_YF_data_tool
-from models.model_langgraph import llm
+from tools.render_bt import render_xml_to_image
+from models.model_langgraph import llm, vlm
 from configs.agents_config import (
     PLANNER_AGENT_PROMPT,
     GENERATION_AGENT_PROMPT,
@@ -12,7 +16,9 @@ from utils.utils_langgraph import (
     State,
     # Output,
     ValidationState,
+    PlannerResponse,
 )
+from utils.minio_client import MinIOClient
 
 from langchain.messages import HumanMessage, SystemMessage
 from deepagents import create_deep_agent
@@ -54,7 +60,7 @@ generator_agent = llm
 #     skills=[],
 # )
 
-validator_agent = llm
+# validator_agent = llm
 
 # validator_agent = create_deep_agent(
 #     model=llm,
@@ -65,6 +71,7 @@ validator_agent = llm
 
 # Augment the LLM with schema for structured output
 validator_llm = llm.with_structured_output(ValidationState)
+planner_llm = llm.with_structured_output(PlannerResponse)
 
 
 # Nodes
@@ -94,23 +101,82 @@ def planner(state: State):
         },
         config={"configurable": {"thread_id": "planner"}},
     )
-    logger.info("Plan generated:\n%s", result["messages"][-1].content)
-    return {"plan": result["messages"][-1].content}
+
+    raw_content = result["messages"][-1].content
+    logger.info("Raw planner output:\n%s", raw_content)
+    # Parse structured JSON output from planner
+    try:
+        parsed = json.loads(raw_content)
+        plan_text = parsed.get("plan", raw_content)
+        explanation_text = parsed.get("explanation", "")
+    except (json.JSONDecodeError, TypeError):
+        logger.warning(
+            "Planner output is not valid JSON; falling back to raw content as plan"
+        )
+        plan_text = raw_content
+        explanation_text = ""
+
+    logger.info("Plan generated:\n%s", plan_text)
+    logger.info("Explanation:\n%s", explanation_text)
+    return {"plan": plan_text, "explanation": explanation_text}
 
 
-# TODO: Remove structured output
 def generator(state: State):
 
     logger.info("Instantiating Generator...")
 
-    completed_summary = llm.invoke(
+    generated_response = llm.invoke(
         [
             SystemMessage(content=GENERATION_AGENT_PROMPT),
             HumanMessage(content=state["plan"]),
         ]
     )
-    logger.info("Output generated:\n%s", completed_summary.content)
-    return {"output": completed_summary.content}
+    logger.info("Output generated:\n%s", generated_response.content)
+
+    # Render the XML behaviour-tree to a PNG image in the data/ folder
+    image_url = ""
+    try:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        output_file = f"/data/bt_{timestamp}.png"
+        rendered_path = render_xml_to_image(
+            xml_text=generated_response.content,
+            output_path=output_file,
+        )
+        logger.info("Behaviour-tree PNG saved to: %s", rendered_path)
+
+        # Upload the rendered PNG to S3 (MinIO) and generate a presigned URL
+        try:
+            s3_bucket = os.getenv("S3_BUCKET", "bt-images")
+            s3_object_name = f"bt_{timestamp}.png"
+            minio_client = (
+                MinIOClient()
+            )  # reads S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY from env
+
+            # Ensure the bucket exists before uploading
+            if not minio_client.bucket_exists(s3_bucket):
+                minio_client.create_bucket(s3_bucket)
+                logger.info("Created S3 bucket: %s", s3_bucket)
+
+            minio_client.upload_file(
+                bucket_name=s3_bucket,
+                object_name=s3_object_name,
+                file_path=rendered_path,
+            )
+            image_url = minio_client.generate_presigned_url(
+                bucket_name=s3_bucket,
+                object_name=s3_object_name,
+                expiration=60,  # 60 minutes
+            )
+            logger.info(
+                "Behaviour-tree PNG uploaded to S3, presigned URL: %s", image_url
+            )
+        except Exception as s3_exc:
+            logger.warning("Failed to upload behaviour-tree PNG to S3: %s", s3_exc)
+
+    except Exception as exc:
+        logger.warning("Failed to render behaviour-tree PNG: %s", exc)
+
+    return {"output": generated_response.content, "image_url": image_url}
 
 
 def validator(state: State):

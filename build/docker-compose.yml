@@ -15,6 +15,7 @@ services:
       - agent
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "dhms4:100.78.50.126"
     stdin_open: true
     tty: true
     volumes:
