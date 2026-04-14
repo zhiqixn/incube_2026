@@ -1,0 +1,58 @@
+# Data Processing
+numpy
+openpyxl
+lxml
+scipy
+chardet
+
+# Database Connection
+sqlalchemy
+
+# Recommendation Engine
+scikit-learn
+
+# Text2Sql
+pydantic
+
+# Frontend
+streamlit
+dipy
+altair
+streamlit-card
+streamlit-modal
+plotly
+matplotlib
+pyvis
+graphviz
+python-docx
+
+# Debug
+termcolor
+
+# Incase need
+Cython==3.0.6
+
+# Add on
+pandas==2.2.3
+pyyaml==6.0.2
+nbclassic==1.2.0
+autogen-core==0.6.1
+autogen-agentchat==0.6.1 # TODO: Consider new version of autogens
+autogen-ext==0.6.1
+autogenstudio
+weaviate-client==4.5.1
+elasticsearch==8.13.0
+arize-phoenix==8.20.0
+arize-phoenix-otel==0.9.0
+openinference-instrumentation-openai==0.1.22
+openinference-instrumentation-litellm==0.1.22
+opentelemetry-exporter-otlp-proto-grpc==1.31.1
+opentelemetry-exporter-otlp-proto-http==1.31.1
+opentelemetry-sdk==1.31.1
+fastapi[standard]==0.115.12
+litellm==1.67.4.post1
+python-socketio==5.13.0
+stockstats==0.5.0
+langchain
+langchain_openai
+deepagents
