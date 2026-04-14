@@ -1,4 +1,4 @@
-# Skills
+p# Skills
 
 This directory contains AgentSkills-compliant skills for the incube_environment agent system. Skills are discovered and loaded by the DeepAgents library via `create_deep_agent(skills=[...])`.
 

@@ -264,8 +264,8 @@ def validator(state: State):
             SystemMessage(content=VALIDATION_AGENT_PROMPT),
             HumanMessage(
                 content=[
+                    {"type": "text", "text": f"BehaviorTree XML:\n\n```xml\n{content}\n```"},
                     {"type": "image_url", "image_url": {"url": resource_url}},
-                    {"type": "text", "content": content},
                 ]
             ),
         ]
