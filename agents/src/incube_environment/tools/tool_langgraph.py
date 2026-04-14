@@ -40,7 +40,7 @@ def should_continue(state: State):
     # This assumes your validator node sets a 'valid' boolean in the state
     if state.get("valid"):
         return END
-    return "generator"
+    return "planner"
 
 
 @tool
