@@ -10,7 +10,7 @@ from configs.agents_config import (
 from typing import Literal
 from utils.utils_langgraph import (
     State,
-    Output,
+    # Output,
     ValidationState,
 )
 
@@ -63,23 +63,33 @@ validator_agent = llm
 #     skills=[],
 # )
 
-# Augment the LLM with schema for structured output (retained for
-# generator and validator nodes that use structured output)
-generator_llm = llm.with_structured_output(Output)
+# Augment the LLM with schema for structured output
 validator_llm = llm.with_structured_output(ValidationState)
 
 
 # Nodes
+# TODO: Add structured output for output to include explanation
 def planner(state: State):
     """Planner that generates a plan for the report"""
 
     logger.info("Instantiating Planner...")
-    logger.debug("Planner input instructions: %s", state["instructions"])
 
+    if state.get("valid") is False:
+        msg_content = (
+            f"Previous output was invalid. \n"
+            f"Previous output: \n {state['output']} \n"
+            f"Feedback: {state['feedback']} \n\n"
+            f"Please revise the plan accordingly.\n\n"
+            f"Instructions: {state['instructions']}"
+        )
+    else:
+        msg_content = state["instructions"]
+
+    logger.info("Invoking planner agent with message content:\n%s", msg_content)
     result = planner_agent.invoke(
         {
             "messages": [
-                HumanMessage(content=state["instructions"]),
+                HumanMessage(content=msg_content),
             ]
         },
         config={"configurable": {"thread_id": "planner"}},
@@ -88,32 +98,31 @@ def planner(state: State):
     return {"plan": result["messages"][-1].content}
 
 
+# TODO: Remove structured output
 def generator(state: State):
 
     logger.info("Instantiating Generator...")
-    logger.info("Plan: %s", state["plan"])
 
-    completed_summary = generator_llm.invoke(
+    completed_summary = llm.invoke(
         [
             SystemMessage(content=GENERATION_AGENT_PROMPT),
             HumanMessage(content=state["plan"]),
         ]
     )
-    logger.info("Output generated:\n%s", completed_summary["output"])
-    return {
-        "output": completed_summary["output"],
-        "explanation": completed_summary["explanation"],
-    }
+    logger.info("Output generated:\n%s", completed_summary.content)
+    return {"output": completed_summary.content}
 
 
 def validator(state: State):
 
-    # logger.info("Instantiating Validator...")
+    logger.info("Instantiating Validator...")
     validation = validator_llm.invoke(
         [
             SystemMessage(content=VALIDATION_AGENT_PROMPT),
-            HumanMessage(content=state["output"] + state["explanation"]),
+            HumanMessage(content=state["output"]),
         ]
     )
     logger.info("Validation result:\n%s", validation["valid"])
+
+    # TODO: Save explanation to local folder if valid is true.
     return {"valid": validation["valid"], "feedback": validation["feedback"]}
