@@ -403,16 +403,21 @@ with st.container(border=True):
         )
 
 # ── Agent Pipeline Status ────────────────────────────────────────────────────
-st.markdown(
-    "<div style='padding:12px 0 8px 0;'>"
-    + agent_badge("PLANNER", st.session_state.agent_states["PLANNER"])
-    + arrow_html()
-    + agent_badge("GENERATOR", st.session_state.agent_states["GENERATOR"])
-    + arrow_html()
-    + agent_badge("VALIDATOR", st.session_state.agent_states["VALIDATOR"])
-    + "</div>",
-    unsafe_allow_html=True,
-)
+pipeline_placeholder = st.empty()
+
+def render_pipeline():
+    pipeline_placeholder.markdown(
+        "<div style='padding:12px 0 8px 0;'>"
+        + agent_badge("PLANNER", st.session_state.agent_states["PLANNER"])
+        + arrow_html()
+        + agent_badge("GENERATOR", st.session_state.agent_states["GENERATOR"])
+        + arrow_html()
+        + agent_badge("VALIDATOR", st.session_state.agent_states["VALIDATOR"])
+        + "</div>",
+        unsafe_allow_html=True,
+    )
+
+render_pipeline()
 
 st.divider()
 
@@ -497,9 +502,8 @@ if execute_btn and mission_input.strip():
     # ── Run agent pipeline ──
     full_response = ""
 
-    # Mark planner running
     st.session_state.agent_states["PLANNER"] = "running"
-    st.rerun()
+    render_pipeline()
 
     for chunk, accumulated in invoke_agent(
         mission_input.strip(),
@@ -513,9 +517,11 @@ if execute_btn and mission_input.strip():
         if bt_xml and st.session_state.agent_states["PLANNER"] == "running":
             st.session_state.agent_states["PLANNER"] = "done"
             st.session_state.agent_states["GENERATOR"] = "running"
+            render_pipeline()
         if val_text and st.session_state.agent_states["GENERATOR"] == "running":
             st.session_state.agent_states["GENERATOR"] = "done"
             st.session_state.agent_states["VALIDATOR"] = "running"
+            render_pipeline()
 
         # Stream to panels
         if plan_text:
