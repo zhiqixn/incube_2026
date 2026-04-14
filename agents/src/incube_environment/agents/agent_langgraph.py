@@ -11,7 +11,7 @@ from utils.utils_langgraph import (
     ValidationState,
 )
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from utils.logger import get_logger
 
 logger = get_logger()
@@ -79,12 +79,21 @@ def planner(state: State):
     else:
         msg_content = state["instructions"]
 
-    logger.info("Invoking planner with message content:\n%s", msg_content)
+    # Build prior-turn messages so the planner has full conversational context
+    history_messages = []
+    for human_text, ai_text in (state.get("chat_history") or []):
+        history_messages.append(HumanMessage(content=human_text))
+        history_messages.append(AIMessage(content=ai_text))
+
+    logger.info(
+        "Invoking planner — history turns=%d, message content:\n%s",
+        len(history_messages) // 2,
+        msg_content,
+    )
     result = llm.invoke(
-        [
-            SystemMessage(content=_AUGMENTED_PLANNER_PROMPT),
-            HumanMessage(content=msg_content),
-        ]
+        [SystemMessage(content=_AUGMENTED_PLANNER_PROMPT)]
+        + history_messages
+        + [HumanMessage(content=msg_content)]
     )
     logger.info("Plan generated:\n%s", result.content)
     return {"plan": result.content}

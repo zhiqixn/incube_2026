@@ -1,4 +1,4 @@
-version: '3.5'
+# version: '3.5'
 
 networks:
   agent:
@@ -21,3 +21,55 @@ services:
     ports:
       - 8888:8888
       - 5001:5000
+
+  database:
+    restart: always
+    build: ../database
+    image: incube_db:1
+    container_name: challenge8_database
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: chatdb
+      POSTGRES_USER: dstaapp
+      POSTGRES_PASSWORD: dstaapp
+    volumes:
+      - ../database:/database
+      - ../database/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+    ulimits:
+      memlock: -1
+      stack: 67108864
+
+  frontend:
+    restart: always
+    image: incub_frontend:1
+    container_name: challenge8_frontend
+    working_dir: /frontend
+    volumes: 
+      - ../frontend:/frontend
+      - ../agents:/agents
+      - ../database:/database
+    environment:
+      - PYTHONPATH=/frontend
+    extra_hosts:
+      - "host.docker.internal:172.18.0.1"
+      - "host.docker.internal:192.168.207.107"
+    deploy:
+      resources:
+        limits:
+          cpus: '10'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ports:
+      - "8501:8501"
+    command: streamlit run Introduction.py

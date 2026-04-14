@@ -32,7 +32,7 @@ _builder.add_conditional_edges(
 planner_worker = _builder.compile()
 
 
-def invoke_agent(instructions: str):
+def invoke_agent(instructions: str, chat_history: list | None = None):
     """Run the multi-agent LangGraph workflow and stream results.
 
     Iterates over node-level updates emitted by the compiled graph and
@@ -43,6 +43,10 @@ def invoke_agent(instructions: str):
     ----------
     instructions:
         The user's request / mission specification.
+    chat_history:
+        Prior conversation turns as a list of ``(user_msg, bot_msg)`` tuples.
+        When provided, the planner receives the full conversation context so
+        follow-up queries can reference earlier missions or clarifications.
 
     Yields
     ------
@@ -55,9 +59,16 @@ def invoke_agent(instructions: str):
     """
     accumulated = ""
 
-    logger.info("invoke_agent called — instructions: %.80s", instructions)
+    logger.info(
+        "invoke_agent called — history turns=%d, instructions: %.80s",
+        len(chat_history) if chat_history else 0,
+        instructions,
+    )
 
-    for event in planner_worker.stream({"instructions": instructions}):
+    for event in planner_worker.stream({
+        "instructions": instructions,
+        "chat_history": chat_history or [],
+    }):
         for node_name, state_update in event.items():
 
             if node_name == "planner" and "plan" in state_update:

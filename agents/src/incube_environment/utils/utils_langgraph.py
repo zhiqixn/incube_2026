@@ -36,6 +36,7 @@ class State(TypedDict):
     explanation: str
     valid: bool
     feedback: str
+    chat_history: list  # list of (user_msg, bot_msg) tuples from prior turns
     # sections: list[Section]
     # completed_sections: Annotated[list, operator.add]
     # final_report: str
