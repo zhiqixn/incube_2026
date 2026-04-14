@@ -46,11 +46,6 @@ class State(TypedDict):
     # messages: list[BaseMessage]
 
 
-class Output(TypedDict):
-    output: str
-    explanation: str
-
-
 class ValidationState(TypedDict):
     valid: bool
     feedback: str

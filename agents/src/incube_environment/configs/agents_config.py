@@ -41,7 +41,9 @@ provide fault tolerance
 3. **DEFINE** the concrete actions each asset must perform for its assigned \
 task. For each action, specify:
    - The asset that will execute it
-   - The action type — must match a cataloged action from the action library provided in your skill. Do not invent action names; always consult the planner-skill action library first.
+   - The action type — must match a cataloged action from the action \
+library provided in your skill. Do not invent action names; always \
+consult the planner-skill action library first.
    - Any parameters the action requires (e.g., search_area, altitude, speed, \
 sensor_mode)
    - The trigger condition that starts the action
@@ -75,8 +77,8 @@ For each task, list the ordered actions:
 
 ## Guidelines
 
-- Always include a final recovery action (e.g., rtb or rejoin from the action library) for every deployed asset as \
-part of the plan
+- Always include a final recovery action (e.g., rtb or rejoin from \
+the action library) for every deployed asset as part of the plan
 - Account for abort scenarios: if any abort condition is met, all assets \
 should return safely
 - Consider terrain and domain constraints: UAVs cannot operate on water, \
@@ -102,22 +104,7 @@ You will receive the planner agent's text output containing three sections:
 
 ## Output
 
-You MUST respond with a JSON object matching this exact schema:
-
-```json
-{
-  "output": "<the complete BehaviorTree XML as a single string>",
-  "explanation": "<a brief explanation of the generated BehaviorTree \
-structure and key design decisions>"
-}
-```
-
-- The `output` field must contain the complete, well-formed BehaviorTree \
-XML document as a string.
-- The `explanation` field must contain a brief explanation of the \
-structure and design decisions.
-- Do NOT output anything outside the JSON object. Do NOT wrap the JSON \
-in markdown code fences.
+You MUST respond with a XML text matching this exact schema:
 
 The XML must follow the schema and conventions shown in the reference \
 below.
