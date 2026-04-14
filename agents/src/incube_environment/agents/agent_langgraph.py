@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tools.tool_langgraph import get_reddit_company_news, get_YF_data_tool
 from tools.render_bt import render_xml_to_image
-from models.model_langgraph import llm, vlm
+from models.model_langgraph import llm
 from configs.agents_config import (
     PLANNER_AGENT_PROMPT,
     GENERATION_AGENT_PROMPT,
