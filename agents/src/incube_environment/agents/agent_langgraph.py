@@ -1,67 +1,61 @@
 from pathlib import Path
 
-from tools.tool_langgraph import get_reddit_company_news, get_YF_data_tool
 from models.model_langgraph import llm
 from configs.agents_config import (
     PLANNER_AGENT_PROMPT,
     GENERATION_AGENT_PROMPT,
     VALIDATION_AGENT_PROMPT,
 )
-from typing import Literal
 from utils.utils_langgraph import (
     State,
-    # Output,
     ValidationState,
 )
 
-from langchain.messages import HumanMessage, SystemMessage
-from deepagents import create_deep_agent
-from deepagents.backends.filesystem import FilesystemBackend
-from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import HumanMessage, SystemMessage
 from utils.logger import get_logger
 
 logger = get_logger()
 
 # ---------------------------------------------------------------------------
-# Project root (used by FilesystemBackend to resolve skill paths)
+# Skill references — read once at startup and injected into the planner
+# system prompt so the local LLM receives all context without tool calls.
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+_SKILL_DIR = Path(__file__).resolve().parent.parent / "skills" / "planner-skill"
 
-# ---------------------------------------------------------------------------
-# Deep agent definitions
-# Each agent is created via create_deep_agent with its skills and tools.
-# The existing LLM and prompts are reused; skills augment the prompts
-# with AgentSkills-compliant SKILL.md content via progressive disclosure.
-# ---------------------------------------------------------------------------
 
-planner_agent = create_deep_agent(
-    model=llm,
-    tools=[],
-    system_prompt=PLANNER_AGENT_PROMPT,
-    skills=["skills/planner-skill/"],
-    backend=FilesystemBackend(root_dir=PROJECT_ROOT),
-    checkpointer=MemorySaver(),
+def _read_ref(filename: str) -> str:
+    try:
+        return (_SKILL_DIR / filename).read_text()
+    except Exception as exc:
+        logger.warning("Could not read skill reference %s: %s", filename, exc)
+        return ""
+
+
+_SKILL_MD = _read_ref("SKILL.md")
+_ACTION_FAMILIES = _read_ref("references/action_families.md")
+_ACTION_LIBRARY = _read_ref("references/action_library.autonodyne.csv")
+_PLANNER_SCHEMA = _read_ref("references/planner_output_schema.md")
+
+_AUGMENTED_PLANNER_PROMPT = "\n\n---\n\n".join(
+    part
+    for part in [
+        PLANNER_AGENT_PROMPT,
+        f"## Planner Skill\n\n{_SKILL_MD}" if _SKILL_MD else "",
+        f"## Action Families Reference\n\n{_ACTION_FAMILIES}" if _ACTION_FAMILIES else "",
+        f"## Action Library (Autonodyne CSV)\n\n```\n{_ACTION_LIBRARY}\n```" if _ACTION_LIBRARY else "",
+        f"## Planner Output Schema\n\n{_PLANNER_SCHEMA}" if _PLANNER_SCHEMA else "",
+    ]
+    if part
 )
-logger.info("Planner agent created with FilesystemBackend, root_dir=%s", PROJECT_ROOT)
-logger.debug("Skills paths: skills/planner-skill/")
 
-generator_agent = llm
-
-# generator_agent = create_deep_agent(
-#     model=llm,
-#     tools=[get_reddit_company_news, get_YF_data_tool],
-#     system_prompt=GENERATION_AGENT_PROMPT,
-#     skills=[],
-# )
-
-validator_agent = llm
-
-# validator_agent = create_deep_agent(
-#     model=llm,
-#     tools=[],
-#     system_prompt=VALIDATION_AGENT_PROMPT,
-#     skills=[],
-# )
+logger.info(
+    "Planner system prompt built — skill_md=%d chars, action_families=%d chars, "
+    "action_library=%d chars, schema=%d chars",
+    len(_SKILL_MD),
+    len(_ACTION_FAMILIES),
+    len(_ACTION_LIBRARY),
+    len(_PLANNER_SCHEMA),
+)
 
 # Augment the LLM with schema for structured output
 validator_llm = llm.with_structured_output(ValidationState)
@@ -85,17 +79,15 @@ def planner(state: State):
     else:
         msg_content = state["instructions"]
 
-    logger.info("Invoking planner agent with message content:\n%s", msg_content)
-    result = planner_agent.invoke(
-        {
-            "messages": [
-                HumanMessage(content=msg_content),
-            ]
-        },
-        config={"configurable": {"thread_id": "planner"}},
+    logger.info("Invoking planner with message content:\n%s", msg_content)
+    result = llm.invoke(
+        [
+            SystemMessage(content=_AUGMENTED_PLANNER_PROMPT),
+            HumanMessage(content=msg_content),
+        ]
     )
-    logger.info("Plan generated:\n%s", result["messages"][-1].content)
-    return {"plan": result["messages"][-1].content}
+    logger.info("Plan generated:\n%s", result.content)
+    return {"plan": result.content}
 
 
 # TODO: Remove structured output
