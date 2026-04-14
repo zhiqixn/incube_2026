@@ -182,12 +182,23 @@ def generator(state: State):
 def validator(state: State):
 
     logger.info("Instantiating Validator...")
+    resource_url = state["resource_url"]
+    content = state["output"]
+
+    logger.info(f"Validator got resource URL: {resource_url}")
+
     validation = validator_llm.invoke(
         [
             SystemMessage(content=VALIDATION_AGENT_PROMPT),
-            HumanMessage(content=state["output"]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": resource_url}},
+                    {"type": "text", "content": content},
+                ]
+            ),
         ]
     )
+
     logger.info("Validation result:\n%s", validation["valid"])
 
     # TODO: Save explanation to local folder if valid is true.
