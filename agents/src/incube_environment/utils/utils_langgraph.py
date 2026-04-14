@@ -36,6 +36,7 @@ class State(TypedDict):
     explanation: str
     valid: bool
     feedback: str
+    resource_url: str  # URL to an external resource (e.g. MinIO presigned URL)
     # sections: list[Section]
     # completed_sections: Annotated[list, operator.add]
     # final_report: str
