@@ -187,6 +187,16 @@ def validator(state: State):
 
     logger.info(f"Validator got resource URL: {resource_url}")
 
+    # If the resource URL was never generated, skip the VLM call and
+    # immediately return an invalid result with descriptive feedback.
+    if not resource_url:
+        logger.warning("Resource URL is empty – image was not generated")
+        return {
+            "valid": False,
+            "feedback": "Resource URL was not generated; the behaviour-tree \
+                image could not be produced or uploaded. Please retry generation.",
+        }
+
     validation = validator_llm.invoke(
         [
             SystemMessage(content=VALIDATION_AGENT_PROMPT),
