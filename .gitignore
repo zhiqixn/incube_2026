@@ -1,6 +1,7 @@
 # project specific
 phoenix/
 .roo/
+.minio/
 docs/
 
 # Byte-compiled / optimized / DLL files

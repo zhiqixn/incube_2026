@@ -13,6 +13,8 @@ services:
       - .env
     networks:
       - agent
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     stdin_open: true
     tty: true
     volumes:
