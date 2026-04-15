@@ -166,9 +166,15 @@ def planner(state: State):
 
     raw_content = result["messages"][-1].content
     logger.info("Raw planner output:\n%s", raw_content)
+    # Strip markdown code fences (```json ... ```) that LLMs commonly wrap around JSON
+    stripped = raw_content.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.split("\n", 1)[1]  # drop opening ```json line
+        stripped = stripped.rsplit("```", 1)[0]  # drop closing ```
+        stripped = stripped.strip()
     # Parse structured JSON output from planner
     try:
-        parsed = json.loads(raw_content)
+        parsed = json.loads(stripped)
         plan_text = parsed.get("plan", raw_content)
         explanation_text = parsed.get("explanation", "")
     except (json.JSONDecodeError, TypeError):
