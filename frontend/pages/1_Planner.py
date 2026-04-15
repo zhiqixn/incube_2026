@@ -3,8 +3,11 @@
 # =========================
 
 import sys
+import glob
+import os
 import base64
 import streamlit as st
+import streamlit.components.v1 as components
 import psycopg2
 
 sys.path.insert(0, "/agents/src/incube_environment")
@@ -258,6 +261,155 @@ def arrow_html() -> str:
     return '<span style="color:#8b949e;font-size:1.2rem;padding:0 8px;">→</span>'
 
 
+def get_latest_bt_image() -> bytes | None:
+    """Return the bytes of the most-recently modified /data/bt_*.png, or None."""
+    files = glob.glob("/data/bt_*.png")
+    if not files:
+        return None
+    latest = max(files, key=os.path.getmtime)
+    with open(latest, "rb") as f:
+        return f.read()
+
+
+def render_bt_image_viewer(image_bytes: bytes) -> None:
+    """Render an interactive pan/zoom viewer for a behaviour-tree PNG."""
+    b64 = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:image/png;base64,{b64}"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8">
+    <style>
+      * {{ margin:0; padding:0; box-sizing:border-box; }}
+      body {{ background:#0d1117; overflow:hidden; height:100vh; }}
+      #viewer {{
+        position:relative; width:100%; height:100%;
+        overflow:hidden; cursor:grab;
+        border:1px solid #30363d; border-radius:6px;
+        background:#0d1117;
+      }}
+      #viewer.dragging {{ cursor:grabbing; }}
+      #bt-img {{
+        position:absolute; top:0; left:0;
+        transform-origin:0 0;
+        user-select:none; -webkit-user-drag:none;
+      }}
+      #controls {{
+        position:absolute; top:10px; right:10px; z-index:10;
+        display:flex; gap:6px;
+      }}
+      #controls button {{
+        background:#21262d; color:#e6edf3; border:1px solid #30363d;
+        border-radius:4px; padding:4px 10px; font-family:monospace;
+        font-size:0.8rem; cursor:pointer; font-weight:600;
+      }}
+      #controls button:hover {{ background:#30363d; }}
+      #zoom-indicator {{
+        position:absolute; top:10px; left:10px; z-index:10;
+        background:#21262d; color:#8b949e; border:1px solid #30363d;
+        border-radius:4px; padding:4px 10px; font-family:monospace;
+        font-size:0.75rem;
+      }}
+      #loading {{
+        position:absolute; top:50%; left:50%;
+        transform:translate(-50%,-50%);
+        color:#8b949e; font-family:monospace; font-size:0.85rem;
+      }}
+    </style>
+    </head>
+    <body>
+    <div id="viewer">
+      <div id="loading">Loading behaviour tree…</div>
+      <div id="zoom-indicator">100%</div>
+      <div id="controls">
+        <button onclick="zoomBy(1.25)" title="Zoom in">+</button>
+        <button onclick="zoomBy(0.8)" title="Zoom out">−</button>
+        <button onclick="fitToView()" title="Fit to view">FIT</button>
+        <button onclick="resetZoom()" title="Native resolution">1:1</button>
+      </div>
+      <img id="bt-img" src="{data_url}" onload="onImgLoad()" draggable="false"/>
+    </div>
+    <script>
+      const viewer = document.getElementById('viewer');
+      const img    = document.getElementById('bt-img');
+      const zoomEl = document.getElementById('zoom-indicator');
+      let scale = 1, tx = 0, ty = 0;
+      let dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
+      const MIN_SCALE = 0.02, MAX_SCALE = 5;
+
+      function applyTransform() {{
+        img.style.transform = `translate(${{tx}}px,${{ty}}px) scale(${{scale}})`;
+        zoomEl.textContent = Math.round(scale * 100) + '%';
+      }}
+
+      function fitToView() {{
+        const vw = viewer.clientWidth, vh = viewer.clientHeight;
+        const iw = img.naturalWidth, ih = img.naturalHeight;
+        if (!iw || !ih) return;
+        scale = Math.min(vw / iw, vh / ih, 1);
+        tx = (vw - iw * scale) / 2;
+        ty = (vh - ih * scale) / 2;
+        applyTransform();
+      }}
+
+      function resetZoom() {{
+        scale = 1; tx = 0; ty = 0;
+        applyTransform();
+      }}
+
+      function zoomBy(factor) {{
+        const vw = viewer.clientWidth, vh = viewer.clientHeight;
+        const cx = vw / 2, cy = vh / 2;
+        const oldScale = scale;
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+        tx = cx - (cx - tx) * (scale / oldScale);
+        ty = cy - (cy - ty) * (scale / oldScale);
+        applyTransform();
+      }}
+
+      function onImgLoad() {{
+        document.getElementById('loading').style.display = 'none';
+        fitToView();
+      }}
+
+      viewer.addEventListener('wheel', function(e) {{
+        e.preventDefault();
+        const rect = viewer.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const oldScale = scale;
+        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+        tx = mx - (mx - tx) * (scale / oldScale);
+        ty = my - (my - ty) * (scale / oldScale);
+        applyTransform();
+      }}, {{passive: false}});
+
+      viewer.addEventListener('mousedown', function(e) {{
+        dragging = true;
+        viewer.classList.add('dragging');
+        startX = e.clientX; startY = e.clientY;
+        startTx = tx; startTy = ty;
+      }});
+      window.addEventListener('mousemove', function(e) {{
+        if (!dragging) return;
+        tx = startTx + (e.clientX - startX);
+        ty = startTy + (e.clientY - startY);
+        applyTransform();
+      }});
+      window.addEventListener('mouseup', function() {{
+        dragging = false;
+        viewer.classList.remove('dragging');
+      }});
+
+      viewer.addEventListener('dblclick', fitToView);
+    </script>
+    </body>
+    </html>
+    """
+    components.html(html, height=600, scrolling=False)
+
+
 # =========================
 # PAGE CONFIG & CSS
 # =========================
@@ -433,6 +585,7 @@ defaults = {
     "current_bt": "",
     "current_validation": "",
     "current_explanation": "",
+    "current_bt_image_bytes": None,
     "agent_states": {"PLANNER": "idle", "GENERATOR": "idle", "VALIDATOR": "idle"},
     "executing": False,
     "pending_brief": "",          # template text waiting to be injected into the textarea
@@ -462,6 +615,7 @@ with st.sidebar:
         st.session_state.current_bt = ""
         st.session_state.current_validation = ""
         st.session_state.current_explanation = ""
+        st.session_state.current_bt_image_bytes = None
         st.session_state.agent_states = {"PLANNER": "idle", "GENERATOR": "idle", "VALIDATOR": "idle"}
 
     st.markdown("**Mission Archive**")
@@ -574,7 +728,8 @@ tab_plan, tab_bt, tab_exp, tab_val, tab_log = st.tabs([
 plan_placeholder = tab_plan.empty()
 bt_placeholder = tab_bt.empty()
 exp_placeholder = tab_exp.empty()
-val_placeholder = tab_val.empty()
+val_image_placeholder = tab_val.empty()
+val_text_placeholder = tab_val.empty()
 log_container = tab_log.container()
 
 # Render any pre-existing outputs (e.g. after loading from archive)
@@ -584,8 +739,11 @@ if st.session_state.current_bt:
     bt_placeholder.code(st.session_state.current_bt, language="xml")
 if st.session_state.current_explanation:
     exp_placeholder.markdown(st.session_state.current_explanation)
+if st.session_state.current_bt_image_bytes:
+    with val_image_placeholder.container():
+        render_bt_image_viewer(st.session_state.current_bt_image_bytes)
 if st.session_state.current_validation:
-    val_placeholder.markdown(st.session_state.current_validation)
+    val_text_placeholder.markdown(st.session_state.current_validation)
 
 # Render execution log from history
 with log_container:
@@ -641,10 +799,12 @@ if execute_btn and mission_input.strip():
     st.session_state.current_bt = ""
     st.session_state.current_validation = ""
     st.session_state.current_explanation = ""
+    st.session_state.current_bt_image_bytes = None
     plan_placeholder.empty()
     bt_placeholder.empty()
     exp_placeholder.empty()
-    val_placeholder.empty()
+    val_image_placeholder.empty()
+    val_text_placeholder.empty()
 
     # ── Run agent pipeline ──
     full_response = ""
@@ -675,13 +835,28 @@ if execute_btn and mission_input.strip():
             st.session_state.agent_states["VALIDATOR"] = "running"
             render_pipeline()
 
+        # Load the rendered BT image once the generator is fully done.
+        # The PNG is rendered inside the generator node *after* the LLM
+        # call, so we wait until the closing XML tag is present (signals
+        # the "updates" event has fired and the PNG exists on disk).
+        bt_complete = bt_xml and (
+            bt_xml.rstrip().endswith("</root>")
+            or bt_xml.rstrip().endswith("</BehaviorTree>")
+        )
+        if bt_complete and st.session_state.current_bt_image_bytes is None:
+            img_bytes = get_latest_bt_image()
+            if img_bytes:
+                st.session_state.current_bt_image_bytes = img_bytes
+                with val_image_placeholder.container():
+                    render_bt_image_viewer(img_bytes)
+
         # Stream to panels
         if plan_text:
             plan_placeholder.markdown(plan_text)
         if bt_xml:
             bt_placeholder.code(bt_xml, language="xml")
         if val_text:
-            val_placeholder.markdown(val_text)
+            val_text_placeholder.markdown(val_text)
 
     # Finalise agent states
     plan_text, bt_xml, val_text = parse_agent_outputs(full_response)

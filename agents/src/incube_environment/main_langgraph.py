@@ -143,10 +143,12 @@ def invoke_agent(
                         # Use the canonical node output (includes any
                         # post-processing done after the LLM call).
                         accumulated += output_text
-                        # Only yield if we never streamed tokens (fallback for
-                        # non-streaming LLM backends).
+                        # Always yield so the frontend knows the generator
+                        # is done (PNG has been rendered at this point).
                         if not generator_streamed:
                             yield output_text, accumulated, ""
+                        else:
+                            yield "", accumulated, ""
 
                     elif node_name == "validator":
                         valid = state_update.get("valid")
@@ -155,10 +157,18 @@ def invoke_agent(
                         # Reset for potential retry loop.
                         generator_streamed = ""
                         generator_committed = False
+                        # Always yield feedback so the frontend can
+                        # display it in the Validation Report tab.
                         if valid is False and feedback:
-                            note = f"\n\n---\n*Revision needed — {feedback}*"
-                            accumulated += note
-                            yield note, accumulated, ""
+                            note = f"\n\n---\n**Validation: FAILED**\n\n{feedback}"
+                        elif valid and feedback:
+                            note = f"\n\n---\n**Validation: PASSED**\n\n{feedback}"
+                        elif valid:
+                            note = "\n\n---\n**Validation: PASSED**"
+                        else:
+                            note = "\n\n---\n**Validation: FAILED**"
+                        accumulated += note
+                        yield note, accumulated, ""
     except GeneratorExit:
         logger.info("invoke_agent generator closed by caller — shutting down stream gracefully")
         stream.close()
