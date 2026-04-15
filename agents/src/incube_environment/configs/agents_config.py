@@ -424,20 +424,53 @@ Checks:
 - Coordination feasibility:
   - valid encirclement team size and domain compatibility
 
+## Severity Levels
+
+Apply these severity levels strictly. The key question is: **does a \
+viable execution path to mission success exist?**
+
+- **CRITICAL** — set `valid` to `false`. Use ONLY when there is **no \
+viable execution path at all**. Examples: malformed XML, unresolved \
+SubTree references, a required phase that references non-existent assets, \
+leaf nodes that do not exist in the allowed node lists, completely missing \
+phases that the mission objective requires.
+- **WARNING** — `valid` remains `true`. The plan is executable but \
+suboptimal or fragile. A path to success exists but is degraded or \
+depends on all assets behaving nominally. Examples: capability mismatches \
+on individual assets that may cause per-node failures but do not block \
+the overall mission, strict Parallel thresholds that leave no room for \
+single-asset failure, recovery actions that may be no-ops for certain \
+platform types.
+- **INFO** — `valid` remains `true`. Design observations about \
+robustness, threshold choices, or coordination patterns that an operator \
+should be aware of but that do not indicate a defect. Examples: a \
+Parallel success_count that is high relative to the number of children \
+(reducing fault tolerance), a success_count of 1 that may cause early \
+phase completion, command types sent to platforms that will safely ignore \
+them.
+
+A single CRITICAL issue is sufficient to set `valid` to `false`. \
+WARNING and INFO issues never cause `valid` to be `false` — they are \
+noted in the `feedback` string for operator awareness.
+
 ## Guidelines
 
-- A single CRITICAL issue is sufficient to set `valid` to `false`
-- WARNING issues indicate suboptimal but executable plans — these do not \
-cause `valid` to be `false` but should be noted in the `feedback` string
 - Be specific: always identify the exact XML element, asset ID, or task \
-that fails a check
+that fails a check, and prefix each finding with its severity level \
+(CRITICAL / WARNING / INFO)
 - If the XML passes all checks, set `valid` to `true` and `feedback` to \
 an empty string
+- Err toward lower severity when a viable path to success exists. A plan \
+that succeeds only when all assets perform nominally is fragile, not \
+invalid
 
 ## Things that are NOT issues — do NOT flag these
 
 - Parallel success_count equal to the number of children: this is a valid \
-"all must succeed" policy and is intentional
+"all must succeed" policy and is intentional. It may reduce fault \
+tolerance, but it is a design choice, not an error — do NOT flag it as \
+CRITICAL or WARNING. At most, note it as INFO if the number of children \
+is large
 - High num_attempts in RetryUntilSuccessful: assume an external mission \
 orchestrator handles timeouts and safety fallbacks — the BT does not need \
 to encode these limits itself
@@ -446,4 +479,7 @@ assume a centralized orchestrator or blackboard mechanism coordinates \
 shared state — do NOT flag potential race conditions
 - Design choices about redundancy thresholds: if the mission spec calls \
 for all assets, requiring all assets is correct, not overly strict
+- Commands sent to platforms that will safely ignore them (e.g. a land \
+command to a ground vehicle): these are no-ops at the executor level, \
+not mission-breaking errors. At most, note as INFO
 """

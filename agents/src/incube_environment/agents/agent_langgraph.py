@@ -209,6 +209,7 @@ def generator(state: State):
         rendered_path = render_xml_to_image(
             xml_text=generated_response.content,
             output_path=output_file,
+            fmt='png',
         )
         logger.info("Behaviour-tree PNG saved to: %s", rendered_path)
 
