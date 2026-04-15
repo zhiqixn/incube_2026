@@ -12,6 +12,7 @@ from configs.agents_config import (
     VALIDATION_AGENT_PROMPT,
 )
 from typing import Literal
+from langchain_core.runnables import RunnableConfig
 from utils.utils_langgraph import (
     State,
     # Output,
@@ -189,7 +190,7 @@ def planner(state: State):
     return {"plan": plan_text, "explanation": explanation_text}
 
 
-def generator(state: State):
+def generator(state: State, config: RunnableConfig):
 
     logger.info("Instantiating Generator...")
 
@@ -197,7 +198,8 @@ def generator(state: State):
         [
             SystemMessage(content=GENERATION_AGENT_PROMPT),
             HumanMessage(content=state["plan"]),
-        ]
+        ],
+        config=config,
     )
     logger.info("Output generated:\n%s", generated_response.content)
 
