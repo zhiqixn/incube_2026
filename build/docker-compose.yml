@@ -59,15 +59,17 @@ services:
     working_dir: /frontend
     env_file:
       - .env
-    volumes: 
+    volumes:
       - ../frontend:/frontend
       - ../agents:/agents
       - ../database:/database
+      - ../data:/data
     environment:
       - PYTHONPATH=/frontend
     extra_hosts:
       - "host.docker.internal:172.18.0.1"
       - "host.docker.internal:192.168.207.107"
+      - "dhms4:100.78.50.126"
     deploy:
       resources:
         limits:
