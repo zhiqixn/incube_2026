@@ -354,7 +354,13 @@ Checks:
 missions)
 - Control flow is well-formed:
   - Sequence, Fallback have ≥1 child
-  - Parallel has valid success_count / failure_count
+  - Parallel has valid success_count / failure_count:
+    - success_count must be ≥ 1 and ≤ number of children
+    - failure_count must be ≥ 1 and ≤ number of children
+    - success_count == number of children is VALID (means "all must \
+succeed") — do NOT flag this as an issue
+    - success_count == 1 is VALID (means "any one succeeds")
+    - These are design choices, not errors
 - Mission structure is sensible:
   - phases composed correctly (Sequence vs Parallel)
   - recovery/fallback branches exist where expected
@@ -427,4 +433,17 @@ cause `valid` to be `false` but should be noted in the `feedback` string
 that fails a check
 - If the XML passes all checks, set `valid` to `true` and `feedback` to \
 an empty string
+
+## Things that are NOT issues — do NOT flag these
+
+- Parallel success_count equal to the number of children: this is a valid \
+"all must succeed" policy and is intentional
+- High num_attempts in RetryUntilSuccessful: assume an external mission \
+orchestrator handles timeouts and safety fallbacks — the BT does not need \
+to encode these limits itself
+- Multiple agents calling the same action node type (e.g. partitioning): \
+assume a centralized orchestrator or blackboard mechanism coordinates \
+shared state — do NOT flag potential race conditions
+- Design choices about redundancy thresholds: if the mission spec calls \
+for all assets, requiring all assets is correct, not overly strict
 """

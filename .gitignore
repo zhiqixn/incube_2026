@@ -3,6 +3,7 @@ phoenix/
 .roo/
 .minio/
 docs/
+data/*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
