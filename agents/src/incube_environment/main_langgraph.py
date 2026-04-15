@@ -99,10 +99,11 @@ def invoke_agent(
 
                 if node_name == "planner" and "plan" in state_update:
                     plan_text = state_update["plan"]
+                    explanation_text = state_update.get("explanation", "")
                     logger.info("Planner step completed")
                     chunk = f"**Plan:**\n\n{plan_text}\n\n---\n\n"
                     accumulated = chunk
-                    yield chunk, accumulated
+                    yield chunk, accumulated, explanation_text
 
                 elif node_name == "generator" and "output" in state_update:
                     output_text = state_update["output"]
@@ -111,7 +112,7 @@ def invoke_agent(
                     # The full accumulated text (plan + XML + validation notes) is
                     # what gets stored in the database for history retrieval.
                     accumulated += output_text
-                    yield output_text, accumulated
+                    yield output_text, accumulated, ""
 
                 elif node_name == "validator":
                     valid = state_update.get("valid")
@@ -120,7 +121,7 @@ def invoke_agent(
                     if valid is False and feedback:
                         note = f"\n\n---\n*Revision needed — {feedback}*"
                         accumulated += note
-                        yield note, accumulated
+                        yield note, accumulated, ""
     except GeneratorExit:
         logger.info("invoke_agent generator closed by caller — shutting down stream gracefully")
         stream.close()
