@@ -91,6 +91,46 @@ def save_message(conversation_id, user_msg, bot_msg):
 # TEMPLATES
 # =========================
 
+_DOMAIN_CONSTRAINT_BLOCK = (
+    "\n\n"
+    "DOMAIN CONSTRAINTS — mandatory pre-assignment check:\n"
+    "Before assigning any action to any asset, read the `fleet` section of the "
+    "uploaded mission_spec and classify each asset by its `domain` field. Then "
+    "enforce the following hard rules without exception:\n\n"
+    "  AIR assets (domain: air — quadrotor, fixed_wing):\n"
+    "    Allowed: aerial search (lawnmower / racetrack / spiral), aerial track, "
+    "overwatch, takeoff, land, ReturnHome.\n"
+    "    FORBIDDEN: sail, surface patrol, ground patrol, drive, any water-surface "
+    "or terrain-traversal action.\n"
+    "    Additional — fixed_wing only: CANNOT encircle, CANNOT hover, CANNOT use "
+    "partition-based exploration nodes "
+    "(exploration_AssignPartitions, exploration_PartitionSearchArea, "
+    "exploration_SetPartitions, exploration_SetPartitionAssignments, "
+    "exploration_SetPartitionCompletion, exploration_IsAllPartitionsComplete, "
+    "exploration_IsPartitionComplete, exploration_IsPartitionSet).\n\n"
+    "  SEA assets (domain: sea — usv):\n"
+    "    Allowed: surface search (sector_scan, perimeter, shoreline_sweep), "
+    "surface track, surface encircle, surface patrol, ReturnHome.\n"
+    "    FORBIDDEN: fly, flyover, takeoff, land, go_to_altitude, "
+    "override_altitude, arm_motors, any aerial or ground-traversal action. "
+    "USV nodes controller_CommandArm, controller_CommandLand, "
+    "controller_CommandTakeOff, controller_SetHome, controller_SetMode, and "
+    "mission_OverridePoseAltitude are NOT available on USV — never assign them.\n\n"
+    "  LAND assets (domain: land — ugv):\n"
+    "    Allowed: ground search (corridor_sweep, perimeter, waypoint_patrol), "
+    "ground track, ground encircle, ReturnHome.\n"
+    "    FORBIDDEN: fly, flyover, takeoff, land, sail, any aerial or "
+    "water-surface action. UGV CANNOT hand off targets (HandoffTarget node is "
+    "NOT available on UGV). UGV nodes controller_CommandArm, "
+    "controller_CommandLand, controller_CommandTakeOff, controller_SetHome, "
+    "controller_SetMode, controller_SetPointLocal, and "
+    "mission_OverridePoseAltitude are NOT available on UGV — never assign them.\n\n"
+    "After building the fleet roster, produce a one-line domain summary for each "
+    "asset in the format: `<id> | <domain> | <platform_type> | <allowed actions>` "
+    "and verify no forbidden action appears in any asset's behavior chain before "
+    "finalising the plan."
+)
+
 TEMPLATES = [
     {
         "title": "AREA SURVEILLANCE",
@@ -100,12 +140,17 @@ TEMPLATES = [
             "Using the asset inventory and area of operations defined in the attached "
             "mission_spec_edited.yaml, plan an Intelligence, Surveillance and Reconnaissance "
             "(ISR) mission.\n\n"
-            "Objective: Achieve comprehensive coverage of the designated AO using all available "
-            "UAV assets. Allocate assets to cover all sectors with overlapping fields of view "
-            "and minimise loiter gaps. UGVs / USVs hold at staging unless tasked for "
-            "ground-truth confirmation.\n\n"
+            "Objective: Achieve comprehensive coverage of the designated AO. "
+            "Air assets (UAVs) conduct aerial search using patterns appropriate to their "
+            "platform type (lawnmower / spiral for quadrotors; racetrack / corridor_pass "
+            "for fixed-wing). Sea assets (USVs) conduct surface search of the coastal and "
+            "littoral sectors using sector_scan or shoreline_sweep — they do not fly. "
+            "Land assets (UGVs) hold at staging or conduct ground-level corridor sweeps "
+            "within traversable terrain — they do not fly or sail. "
+            "Minimise coverage gaps across all domains.\n\n"
             "Constraints: Maintain minimum safe separation between air assets. "
             "All assets must be recoverable on task completion."
+            + _DOMAIN_CONSTRAINT_BLOCK
         ),
     },
     {
@@ -117,10 +162,15 @@ TEMPLATES = [
             "mission_spec_edited.yaml, plan a Search and Secure mission.\n\n"
             "Objective: Deploy multi-domain assets to systematically search the AO for the "
             "designated target, confirm identification, and establish a secure perimeter. "
-            "UAVs provide aerial search and overwatch; UGVs / USVs close for ground-level "
-            "confirmation and perimeter hold.\n\n"
+            "Air assets (UAVs) conduct aerial search and overwatch using aerial-only patterns "
+            "and nodes — they stay airborne throughout. "
+            "Sea assets (USVs) search and patrol the water surface using surface nodes only — "
+            "they do not use any aerial actions. "
+            "Land assets (UGVs) close for ground-level confirmation and perimeter hold using "
+            "ground traversal actions — they do not fly or sail.\n\n"
             "Constraints: ROE requires positive identification before any UGV / USV advance. "
             "All assets RTB on task completion or on low-battery threshold."
+            + _DOMAIN_CONSTRAINT_BLOCK
         ),
     },
     {
@@ -130,13 +180,18 @@ TEMPLATES = [
         "prompt": (
             "Using the asset inventory and area of operations defined in the attached "
             "mission_spec_edited.yaml, plan a coordinated strike mission.\n\n"
-            "Objective: Synchronise UAV, UGV, and USV assets to locate, designate, and "
-            "neutralise the priority target within the AO. UAVs provide terminal guidance "
-            "and battle damage assessment; UGVs / USVs execute the ground approach and "
-            "payload delivery.\n\n"
+            "Objective: Synchronise assets across all present domains to locate, designate, "
+            "and neutralise the priority target within the AO. "
+            "Air assets (UAVs) provide aerial terminal guidance and battle damage assessment "
+            "using aerial search, track, and overwatch nodes — they remain airborne. "
+            "Sea assets (USVs) execute the surface approach and payload delivery via surface "
+            "navigation and track nodes — they do not use any aerial nodes. "
+            "Land assets (UGVs) execute the ground approach and payload delivery via ground "
+            "traversal nodes — they do not fly or sail.\n\n"
             "Constraints: Strike package must achieve simultaneous arrival within the "
             "engagement window. Abort criteria: any asset loss or comms blackout exceeding "
             "30 seconds triggers immediate RTB for all remaining assets."
+            + _DOMAIN_CONSTRAINT_BLOCK
         ),
     },
 ]
@@ -377,6 +432,7 @@ defaults = {
     "current_plan": "",
     "current_bt": "",
     "current_validation": "",
+    "current_explanation": "",
     "agent_states": {"PLANNER": "idle", "GENERATOR": "idle", "VALIDATOR": "idle"},
     "executing": False,
     "pending_brief": "",          # template text waiting to be injected into the textarea
@@ -405,6 +461,7 @@ with st.sidebar:
         st.session_state.current_plan = ""
         st.session_state.current_bt = ""
         st.session_state.current_validation = ""
+        st.session_state.current_explanation = ""
         st.session_state.agent_states = {"PLANNER": "idle", "GENERATOR": "idle", "VALIDATOR": "idle"}
 
     st.markdown("**Mission Archive**")
@@ -506,15 +563,17 @@ render_pipeline()
 st.divider()
 
 # ── Output Tabs ──────────────────────────────────────────────────────────────
-tab_plan, tab_bt, tab_val, tab_log = st.tabs([
+tab_plan, tab_bt, tab_exp, tab_val, tab_log = st.tabs([
     "MISSION PLAN",
     "BEHAVIOR TREE XML",
+    "EXPLANATION",
     "VALIDATION REPORT",
     "EXECUTION LOG",
 ])
 
 plan_placeholder = tab_plan.empty()
 bt_placeholder = tab_bt.empty()
+exp_placeholder = tab_exp.empty()
 val_placeholder = tab_val.empty()
 log_container = tab_log.container()
 
@@ -523,6 +582,8 @@ if st.session_state.current_plan:
     plan_placeholder.markdown(st.session_state.current_plan)
 if st.session_state.current_bt:
     bt_placeholder.code(st.session_state.current_bt, language="xml")
+if st.session_state.current_explanation:
+    exp_placeholder.markdown(st.session_state.current_explanation)
 if st.session_state.current_validation:
     val_placeholder.markdown(st.session_state.current_validation)
 
@@ -579,8 +640,10 @@ if execute_btn and mission_input.strip():
     st.session_state.current_plan = ""
     st.session_state.current_bt = ""
     st.session_state.current_validation = ""
+    st.session_state.current_explanation = ""
     plan_placeholder.empty()
     bt_placeholder.empty()
+    exp_placeholder.empty()
     val_placeholder.empty()
 
     # ── Run agent pipeline ──
@@ -589,13 +652,18 @@ if execute_btn and mission_input.strip():
     st.session_state.agent_states["PLANNER"] = "running"
     render_pipeline()
 
-    for chunk, accumulated in invoke_agent(
+    for chunk, accumulated, explanation in invoke_agent(
         mission_input.strip(),
         chat_history=st.session_state.mission_history,
         uploaded_files=uploaded_files,
     ):
         full_response = accumulated
         plan_text, bt_xml, val_text = parse_agent_outputs(full_response)
+
+        # Capture explanation emitted by the planner step
+        if explanation:
+            st.session_state.current_explanation = explanation
+            exp_placeholder.markdown(explanation)
 
         # Update agent states based on what's populated
         if bt_xml and st.session_state.agent_states["PLANNER"] == "running":
@@ -628,6 +696,7 @@ if execute_btn and mission_input.strip():
     st.session_state.current_plan = plan_text
     st.session_state.current_bt = bt_xml
     st.session_state.current_validation = val_text
+    # current_explanation is already set during streaming; no re-parse needed
 
     # Persist
     file_names = ", ".join(f["name"] for f in uploaded_files)
