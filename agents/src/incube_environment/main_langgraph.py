@@ -40,9 +40,11 @@ def invoke_agent(
 ):
     """Run the multi-agent LangGraph workflow and stream results.
 
-    Iterates over node-level updates emitted by the compiled graph and
-    yields ``(chunk, accumulated)`` tuples so the caller can progressively
-    update a display placeholder.
+    Uses ``stream_mode=["messages", "updates"]`` so that:
+    - ``"messages"`` events carry individual LLM tokens from the generator node
+      as they arrive, enabling progressive UI updates.
+    - ``"updates"`` events carry complete node state on completion, used for
+      the planner (structured JSON output) and validator (structured output).
 
     Parameters
     ----------
@@ -65,13 +67,19 @@ def invoke_agent(
     Yields
     ------
     chunk : str
-        The new text produced at this step.
+        The new text produced at this step (a single token during generator
+        streaming, or a full section on node completion).
     accumulated : str
-        The full response text accumulated so far.  After the generator
-        node runs, ``accumulated`` becomes just the clean output so the
-        final value stored by the caller is the finished report.
+        The full response text accumulated so far.
+    explanation : str
+        Explanation text emitted by the planner node (empty otherwise).
     """
     accumulated = ""
+    # Tokens streamed from the generator node before its "updates" event arrives.
+    generator_streamed = ""
+    # Set True once the generator "updates" event is consumed so we don't
+    # double-yield the same content.
+    generator_committed = False
 
     logger.info(
         "invoke_agent called — history turns=%d, uploaded_files=%d, instructions: %.80s",
@@ -91,49 +99,77 @@ def invoke_agent(
             "uploaded_files": uploaded_files or [],
         },
         config=stream_config,
+        stream_mode=["messages", "updates"],
     )
 
     try:
-        for event in stream:
-            for node_name, state_update in event.items():
+        for event_type, event_data in stream:
 
-                if node_name == "planner" and "plan" in state_update:
-                    plan_text = state_update["plan"]
-                    explanation_text = state_update.get("explanation", "")
-                    logger.info("Planner step completed")
-                    chunk = f"**Plan:**\n\n{plan_text}\n\n---\n\n"
-                    accumulated = chunk
-                    yield chunk, accumulated, explanation_text
+            # ── Token-level events ──────────────────────────────────────────
+            if event_type == "messages":
+                chunk_msg, metadata = event_data
+                node_name = metadata.get("langgraph_node", "")
+                token = chunk_msg.content if hasattr(chunk_msg, "content") else ""
+                if not token:
+                    continue
 
-                elif node_name == "generator" and "output" in state_update:
-                    output_text = state_update["output"]
-                    logger.info("Generator step completed")
-                    # Append XML output so the plan is preserved in the stream.
-                    # The full accumulated text (plan + XML + validation notes) is
-                    # what gets stored in the database for history retrieval.
-                    accumulated += output_text
-                    yield output_text, accumulated, ""
+                # Only stream tokens from the generator (XML BT output).
+                # Planner emits structured JSON (not useful to render partially);
+                # validator emits structured JSON too — both stay node-level only.
+                if node_name == "generator" and not generator_committed:
+                    generator_streamed += token
+                    partial_accumulated = accumulated + generator_streamed
+                    yield token, partial_accumulated, ""
 
-                elif node_name == "validator":
-                    valid = state_update.get("valid")
-                    feedback = state_update.get("feedback", "")
-                    logger.info("Validator step — valid=%s", valid)
-                    if valid is False and feedback:
-                        note = f"\n\n---\n*Revision needed — {feedback}*"
-                        accumulated += note
-                        yield note, accumulated, ""
+            # ── Node-completion events ──────────────────────────────────────
+            elif event_type == "updates":
+                for node_name, state_update in event_data.items():
+
+                    if node_name == "planner" and "plan" in state_update:
+                        plan_text = state_update["plan"]
+                        explanation_text = state_update.get("explanation", "")
+                        logger.info("Planner step completed")
+                        chunk = f"**Plan:**\n\n{plan_text}\n\n---\n\n"
+                        accumulated = chunk
+                        # Reset generator tracking for potential retry loops.
+                        generator_streamed = ""
+                        generator_committed = False
+                        yield chunk, accumulated, explanation_text
+
+                    elif node_name == "generator" and "output" in state_update:
+                        output_text = state_update["output"]
+                        logger.info("Generator step completed")
+                        generator_committed = True
+                        # Use the canonical node output (includes any
+                        # post-processing done after the LLM call).
+                        accumulated += output_text
+                        # Only yield if we never streamed tokens (fallback for
+                        # non-streaming LLM backends).
+                        if not generator_streamed:
+                            yield output_text, accumulated, ""
+
+                    elif node_name == "validator":
+                        valid = state_update.get("valid")
+                        feedback = state_update.get("feedback", "")
+                        logger.info("Validator step — valid=%s", valid)
+                        # Reset for potential retry loop.
+                        generator_streamed = ""
+                        generator_committed = False
+                        if valid is False and feedback:
+                            note = f"\n\n---\n*Revision needed — {feedback}*"
+                            accumulated += note
+                            yield note, accumulated, ""
     except GeneratorExit:
         logger.info("invoke_agent generator closed by caller — shutting down stream gracefully")
         stream.close()
-        return
 
 
 if __name__ == "__main__":
     logger.info("Instantiating planner...")
     logger.info("Topic: %s", prompt)
 
-    full_output = ""
-    for chunk, accumulated in invoke_agent(prompt):
-        full_output = accumulated
+    output = ""
+    for _chunk, output, _explanation in invoke_agent(prompt):
+        pass
 
-    logger.info("FINAL REPORT:\n%s", full_output)
+    logger.info("FINAL REPORT:\n%s", output)
