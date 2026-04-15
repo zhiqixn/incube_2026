@@ -155,7 +155,11 @@ def invoke_agent(
                         # Reset for potential retry loop.
                         generator_streamed = ""
                         generator_committed = False
-                        if valid is False and feedback:
+                        if valid:
+                            note = "\n\n---\n*Validation passed.*"
+                            accumulated += note
+                            yield note, accumulated, ""
+                        elif valid is False and feedback:
                             note = f"\n\n---\n*Revision needed — {feedback}*"
                             accumulated += note
                             yield note, accumulated, ""

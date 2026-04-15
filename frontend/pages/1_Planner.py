@@ -652,38 +652,42 @@ if execute_btn and mission_input.strip():
     st.session_state.agent_states["PLANNER"] = "running"
     render_pipeline()
 
-    for chunk, accumulated, explanation in invoke_agent(
-        mission_input.strip(),
-        chat_history=st.session_state.mission_history,
-        uploaded_files=uploaded_files,
-    ):
-        full_response = accumulated
-        plan_text, bt_xml, val_text = parse_agent_outputs(full_response)
+    try:
+        for chunk, accumulated, explanation in invoke_agent(
+            mission_input.strip(),
+            chat_history=st.session_state.mission_history,
+            uploaded_files=uploaded_files,
+        ):
+            full_response = accumulated
+            plan_text, bt_xml, val_text = parse_agent_outputs(full_response)
 
-        # Capture explanation emitted by the planner step
-        if explanation:
-            st.session_state.current_explanation = explanation
-            exp_placeholder.markdown(explanation)
+            # Capture explanation emitted by the planner step
+            if explanation:
+                st.session_state.current_explanation = explanation
+                exp_placeholder.markdown(explanation)
 
-        # Update agent states based on what's populated
-        if bt_xml and st.session_state.agent_states["PLANNER"] == "running":
-            st.session_state.agent_states["PLANNER"] = "done"
-            st.session_state.agent_states["GENERATOR"] = "running"
-            render_pipeline()
-        if val_text and st.session_state.agent_states["GENERATOR"] == "running":
-            st.session_state.agent_states["GENERATOR"] = "done"
-            st.session_state.agent_states["VALIDATOR"] = "running"
-            render_pipeline()
+            # Update agent states based on what's populated
+            if bt_xml and st.session_state.agent_states["PLANNER"] == "running":
+                st.session_state.agent_states["PLANNER"] = "done"
+                st.session_state.agent_states["GENERATOR"] = "running"
+                render_pipeline()
+            if val_text and st.session_state.agent_states["GENERATOR"] == "running":
+                st.session_state.agent_states["GENERATOR"] = "done"
+                st.session_state.agent_states["VALIDATOR"] = "running"
+                render_pipeline()
 
-        # Stream to panels
-        if plan_text:
-            plan_placeholder.markdown(plan_text)
-        if bt_xml:
-            bt_placeholder.code(bt_xml, language="xml")
-        if val_text:
-            val_placeholder.markdown(val_text)
+            # Stream to panels
+            if plan_text:
+                plan_placeholder.markdown(plan_text)
+            if bt_xml:
+                bt_placeholder.code(bt_xml, language="xml")
+            if val_text:
+                val_placeholder.markdown(val_text)
 
-    # Finalise agent states
+    except Exception as exc:
+        st.error(f"Agent pipeline error: {exc}")
+
+    # Finalise agent states (runs even after an exception)
     plan_text, bt_xml, val_text = parse_agent_outputs(full_response)
     st.session_state.agent_states["PLANNER"] = "done" if plan_text else "error"
     st.session_state.agent_states["GENERATOR"] = "done" if bt_xml else (
@@ -698,7 +702,7 @@ if execute_btn and mission_input.strip():
     st.session_state.current_validation = val_text
     # current_explanation is already set during streaming; no re-parse needed
 
-    # Persist
+    # Persist — always write to DB regardless of agent success/failure
     file_names = ", ".join(f["name"] for f in uploaded_files)
     user_msg_for_db = f"[Files: {file_names}]\n\n{mission_input.strip()}" if uploaded_files else mission_input.strip()
     save_message(st.session_state.conversation_id, user_msg_for_db, full_response)
