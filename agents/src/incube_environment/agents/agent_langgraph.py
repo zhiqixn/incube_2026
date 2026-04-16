@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ from utils.utils_langgraph import (
 from utils.minio_client import MinIOClient
 
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.runnables.config import patch_config
 from deepagents import create_deep_agent
 from deepagents.backends.filesystem import FilesystemBackend
 from langgraph.checkpoint.memory import MemorySaver
@@ -127,7 +129,7 @@ def _build_human_message(msg_content: str, uploaded_files: list) -> HumanMessage
 
 # Nodes
 # TODO: Add structured output for output to include explanation
-def planner(state: State):
+def planner(state: State, config: RunnableConfig):
     """Planner that generates a plan for the report"""
 
     logger.info("Instantiating Planner...")
@@ -157,12 +159,15 @@ def planner(state: State):
         len(uploaded_files),
         msg_content,
     )
+    # Merge parent-graph callbacks (enables token streaming) with the
+    # planner's own thread_id required by MemorySaver.
+    planner_config = patch_config(config, configurable={"thread_id": "planner"})
     result = planner_agent.invoke(
         {
             "messages": history_messages
             + [_build_human_message(msg_content, uploaded_files)]
         },
-        config={"configurable": {"thread_id": "planner"}},
+        config=planner_config,
     )
 
     raw_content = result["messages"][-1].content
@@ -205,6 +210,7 @@ def generator(state: State, config: RunnableConfig):
 
     # Render the XML behaviour-tree to a PNG image in the data/ folder
     image_url = ""
+    image_path = ""
     try:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         output_file = f"/data/bt_{timestamp}.png"
@@ -213,6 +219,7 @@ def generator(state: State, config: RunnableConfig):
             output_path=output_file,
             fmt='png',
         )
+        image_path = str(rendered_path)
         logger.info("Behaviour-tree PNG saved to: %s", rendered_path)
 
         # Upload the rendered PNG to S3 (MinIO) and generate a presigned URL
@@ -247,26 +254,42 @@ def generator(state: State, config: RunnableConfig):
     except Exception as exc:
         logger.warning("Failed to render behaviour-tree PNG: %s", exc)
 
-    return {"output": generated_response.content, "resource_url": image_url}
+    return {"output": generated_response.content, "resource_url": image_url, "resource_path": image_path}
 
 
 def validator(state: State):
 
     logger.info("Instantiating Validator...")
-    resource_url = state["resource_url"]
+    resource_url = state.get("resource_url", "")
+    resource_path = state.get("resource_path", "")
     content = state["output"]
 
-    logger.info(f"Validator got resource URL: {resource_url}")
+    logger.info(f"Validator got resource URL: {resource_url}, path: {resource_path}")
 
-    # If the resource URL was never generated, skip the VLM call and
-    # immediately return an invalid result with descriptive feedback.
-    if not resource_url:
-        logger.warning("Resource URL is empty – image was not generated")
-        return {
-            "valid": False,
-            "feedback": "Resource URL was not generated; the behaviour-tree \
-                image could not be produced or uploaded. Please retry generation.",
-        }
+    # Build the image content block. Prefer a local base64-encoded data URI so
+    # the VLM server never needs to make an outbound HTTP request (which would
+    # fail when the presigned URL uses host.docker.internal).
+    image_content = None
+    if resource_path and os.path.isfile(resource_path):
+        try:
+            with open(resource_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            image_content = {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}
+            logger.info("Using base64-encoded local image for validation")
+        except Exception as read_exc:
+            logger.warning("Failed to read local image for base64 encoding: %s", read_exc)
+
+    if image_content is None:
+        # Fall back to the presigned URL if local path is unavailable.
+        if not resource_url:
+            logger.warning("Resource URL and local path are both empty – image was not generated")
+            return {
+                "valid": False,
+                "feedback": "Resource URL was not generated; the behaviour-tree \
+                    image could not be produced or uploaded. Please retry generation.",
+            }
+        image_content = {"type": "image_url", "image_url": {"url": resource_url}}
+        logger.info("Using presigned URL for validation: %s", resource_url)
 
     validation = validator_llm.invoke(
         [
@@ -274,7 +297,7 @@ def validator(state: State):
             HumanMessage(
                 content=[
                     {"type": "text", "text": f"BehaviorTree XML:\n\n```xml\n{content}\n```"},
-                    {"type": "image_url", "image_url": {"url": resource_url}},
+                    image_content,
                 ]
             ),
         ]

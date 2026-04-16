@@ -36,7 +36,8 @@ class State(TypedDict):
     explanation: str
     valid: bool
     feedback: str
-    resource_url: str  # URL to an external resource (e.g. MinIO presigned URL)
+    resource_url: str   # URL to an external resource (e.g. MinIO presigned URL)
+    resource_path: str  # Local filesystem path to the rendered image (if available)
     chat_history: list  # list of (user_msg, bot_msg) tuples from prior turns
     uploaded_files: list  # list of file dicts: {name, type, content} or {name, type, media_type, data}
     # sections: list[Section]

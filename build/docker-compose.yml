@@ -51,7 +51,7 @@ services:
 
   frontend:
     restart: always
-    image: incub_frontend:1
+    image: incub_frontend:1.1
     build:
       context: ../frontend
       dockerfile: ./Dockerfile

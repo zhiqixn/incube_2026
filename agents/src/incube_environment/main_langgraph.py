@@ -1,3 +1,5 @@
+import re
+
 from configs.runtime_config import prompt
 from langgraph.graph import StateGraph, START, END
 from tools.tool_langgraph import should_continue
@@ -11,6 +13,33 @@ from utils.logger import get_logger, setup_logger
 
 setup_logger()
 logger = get_logger()
+
+
+def _extract_partial_plan(raw: str) -> str:
+    """Extract the plan field value from a partial/complete JSON response.
+
+    The planner emits a JSON object ``{"plan": "...", "explanation": "..."}``.
+    While streaming we want to show the plan text progressively rather than
+    raw JSON.  This function pulls the value of the ``"plan"`` key and
+    unescapes common JSON sequences so the content renders as readable
+    markdown.  Falls back to the raw string when the key is not yet present.
+    """
+    m = re.search(r'"plan"\s*:\s*"(.*)', raw, re.DOTALL)
+    if not m:
+        return raw
+    partial = m.group(1)
+    # Strip trailing JSON closing artefacts (explanation key + closing brace)
+    partial = re.sub(r'",?\s*"explanation".*$', "", partial, flags=re.DOTALL)
+    partial = partial.rstrip('"')
+    # Unescape common JSON string sequences
+    partial = (
+        partial
+        .replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace('\\"', '"')
+        .replace("\\\\", "\\")
+    )
+    return partial
 
 # ---------------------------------------------------------------------------
 # Build and compile the multi-agent workflow once at module level so it is
@@ -75,6 +104,9 @@ def invoke_agent(
         Explanation text emitted by the planner node (empty otherwise).
     """
     accumulated = ""
+    # Tokens streamed from the planner node before its "updates" event arrives.
+    # Kept separate so raw JSON doesn't corrupt the main accumulated buffer.
+    planner_partial = ""
     # Tokens streamed from the generator node before its "updates" event arrives.
     generator_streamed = ""
     # Set True once the generator "updates" event is consumed so we don't
@@ -109,14 +141,21 @@ def invoke_agent(
             if event_type == "messages":
                 chunk_msg, metadata = event_data
                 node_name = metadata.get("langgraph_node", "")
-                token = chunk_msg.content if hasattr(chunk_msg, "content") else ""
+                content = chunk_msg.content if hasattr(chunk_msg, "content") else ""
+                # Guard: content can be a list for multi-modal chunks — skip those.
+                token = content if isinstance(content, str) else ""
                 if not token:
                     continue
 
-                # Only stream tokens from the generator (XML BT output).
-                # Planner emits structured JSON (not useful to render partially);
-                # validator emits structured JSON too — both stay node-level only.
-                if node_name == "generator" and not generator_committed:
+                if node_name == "planner":
+                    # Stream planner tokens so the user sees the agent working.
+                    # Extract the "plan" field value from the partial JSON so
+                    # readable plan text appears rather than raw JSON syntax.
+                    planner_partial += token
+                    display = _extract_partial_plan(planner_partial)
+                    yield token, display, ""
+
+                elif node_name == "generator" and not generator_committed:
                     generator_streamed += token
                     partial_accumulated = accumulated + generator_streamed
                     yield token, partial_accumulated, ""
@@ -131,7 +170,8 @@ def invoke_agent(
                         logger.info("Planner step completed")
                         chunk = f"**Plan:**\n\n{plan_text}\n\n---\n\n"
                         accumulated = chunk
-                        # Reset generator tracking for potential retry loops.
+                        # Clear streaming buffers for potential retry loops.
+                        planner_partial = ""
                         generator_streamed = ""
                         generator_committed = False
                         yield chunk, accumulated, explanation_text

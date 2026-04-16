@@ -80,6 +80,19 @@ class MinIOClient:
             expiration = timedelta(minutes=expiration)
         try:
             url = self.client.presigned_get_object(bucket_name, object_name, expires=expiration)
+            # If S3_PRESIGN_ENDPOINT is set, rewrite the URL so it uses an address
+            # reachable by external clients (e.g. the VLM server). The internal
+            # S3_ENDPOINT (host.docker.internal) is only resolvable inside Docker.
+            presign_endpoint = os.getenv("S3_PRESIGN_ENDPOINT")
+            if presign_endpoint:
+                internal_endpoint = os.getenv("S3_ENDPOINT", "localhost:9000")
+                # Strip protocol prefix if present so we compare bare host:port
+                for prefix in ("http://", "https://"):
+                    if internal_endpoint.startswith(prefix):
+                        internal_endpoint = internal_endpoint[len(prefix):]
+                    if presign_endpoint.startswith(prefix):
+                        presign_endpoint = presign_endpoint[len(prefix):]
+                url = url.replace(internal_endpoint, presign_endpoint, 1)
             print(f"Presigned URL for '{object_name}': {url}")
             return url
         except S3Error as e:

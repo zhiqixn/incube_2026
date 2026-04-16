@@ -12,6 +12,7 @@ import psycopg2
 
 sys.path.insert(0, "/agents/src/incube_environment")
 from main_langgraph import invoke_agent  # noqa: E402
+from models.model_langgraph import llm  # noqa: E402
 
 # =========================
 # CONFIG
@@ -203,6 +204,25 @@ TEMPLATES = [
 # =========================
 # HELPERS
 # =========================
+
+def generate_summary(mission_input: str) -> str:
+    """Return a 7-word summary of the mission input."""
+    from langchain_core.messages import SystemMessage, HumanMessage
+    try:
+        response = llm.invoke([
+            SystemMessage(content=(
+                "You are a title generator. "
+                "Your only task is to produce a 7-word summary of the mission objective "
+                "described in the user's text. "
+                "Do NOT ask for files, do NOT request more information, do NOT explain anything. "
+                "Output exactly 7 words and nothing else."
+            )),
+            HumanMessage(content=f"Summarise this mission objective in 7 words:\n\n{mission_input[:500]}"),
+        ])
+        return response.content.strip()
+    except Exception:
+        return mission_input.strip()[:50]
+
 
 def parse_agent_outputs(full_text: str) -> tuple[str, str, str]:
     """Split concatenated agent output into plan, BehaviorTree XML, and validation sections."""
@@ -881,9 +901,7 @@ if execute_btn and mission_input.strip():
 
     if is_first:
         try:
-            title = mission_input.strip()[:30]
-            if len(mission_input.strip()) > 30:
-                title += "..."
+            title = generate_summary(mission_input.strip())
             update_conversation_title(st.session_state.conversation_id, title)
         except Exception:
             pass
